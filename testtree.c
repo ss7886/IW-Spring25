@@ -61,4 +61,6 @@ int main(void) {
 
     /* Free memory. */
     freeTree(tree);
+
+    printf("Tests passed!\n");
 }

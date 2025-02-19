@@ -30,10 +30,10 @@ libs: $(LIBS)
 int: $(INTERMEDIATE)
 
 testtree: tree.o testtree.o
-	$(CC) tree.o testtree.o $(EXEC) testtree
+	$(CC) tree.o testtree.o $(EXEC) testtree -lm
 
 tree.$(EXT): tree.o
-	$(CC) $(LIB) tree.$(EXT) tree.o
+	$(CC) $(LIB) tree.$(EXT) tree.o -lm
 
 testtree.o: testtree.c
 	$(CC) $(OBJ) testtree.c
