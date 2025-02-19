@@ -43,8 +43,14 @@ EXPORT_SYMBOL bool validSplit(Tree_T tree);
 EXPORT_SYMBOL bool makeLeaf(Tree_T * result, uint32_t dim, double val);
 EXPORT_SYMBOL bool makeSplit(Tree_T * result, uint32_t dim, uint32_t axis,
                double loc, Tree_T left, Tree_T right);
+EXPORT_SYMBOL bool copyTree(Tree_T * result, Tree_T tree);
 EXPORT_SYMBOL void freeTree(Tree_T tree);
 
 EXPORT_SYMBOL double treeEval(Tree_T tree, double x[]);
+
+EXPORT_SYMBOL bool treePruneLeft(Tree_T * result, Tree_T tree, uint32_t axis,
+                                 double loc);
+EXPORT_SYMBOL bool treePruneRight(Tree_T * result, Tree_T tree, uint32_t axis,
+                                  double loc);
 
 #endif

@@ -44,7 +44,7 @@ int main(void) {
     assert(treeDepth(treeRR) == 1);
     assert(treeSize(treeRR) == 2);
 
-    /* Test Eval */    
+    /* Test eval. */    
     double x1[] = {0.0, 0.0, -1.0};
     double x2[] = {1.0, -1.0, 0.0};
     double x3[] = {0.0, 1.0, 1.0};
@@ -59,8 +59,53 @@ int main(void) {
     assert(treeEval(tree, x5) == 0.5);
     assert(treeEval(tree, x6) == 0.6);
 
-    /* Free memory. */
+    /* Test copy. */
+    Tree_T copy;
+    assert(copyTree(&copy, tree));
+
+    assert(treeEval(copy, x1) == 0.1);
+    assert(treeEval(copy, x2) == 0.2);
+    assert(treeEval(copy, x3) == 0.3);
+    assert(treeEval(copy, x4) == 0.4);
+    assert(treeEval(copy, x5) == 0.5);
+    assert(treeEval(copy, x6) == 0.6);
+
+    /* Test prune left. */
+    Tree_T pruneLeft;
+    assert(treePruneLeft(&pruneLeft, tree, 0, 0.5));
+    assert(treeDepth(pruneLeft) == 2);
+    assert(treeSize(pruneLeft) == 4);
+
+    assert(treeEval(pruneLeft, x1) == 0.1);
+    assert(treeEval(pruneLeft, x2) == 0.2);
+    assert(treeEval(pruneLeft, x3) == 0.3);
+    assert(treeEval(pruneLeft, x4) == 0.4);
+    assert(treeEval(pruneLeft, x5) == 0.4);
+    assert(treeEval(pruneLeft, x6) == 0.4);
+
+    /* Test prune right. */
+    Tree_T pruneRight;
+    assert(treePruneRight(&pruneRight, tree, 0, 0.5));
+    assert(treeDepth(pruneRight) == 3);
+    assert(treeSize(pruneRight) == 5);
+
+    assert(treeEval(pruneRight, x1) == 0.1);
+    assert(treeEval(pruneRight, x2) == 0.2);
+    assert(treeEval(pruneRight, x3) == 0.4);
+    assert(treeEval(pruneRight, x4) == 0.4);
+    assert(treeEval(pruneRight, x5) == 0.5);
+    assert(treeEval(pruneRight, x6) == 0.6);
+
+    /* Test that copies are still ok after freeing tree. */
     freeTree(tree);
+    assert(treeEval(copy, x1) == 0.1);
+    assert(treeEval(pruneLeft, x1) == 0.1);
+    assert(treeEval(pruneRight, x1) == 0.1);
+
+    /* Free memory. */
+    freeTree(copy);
+    freeTree(pruneLeft);
+    freeTree(pruneRight);
 
     printf("Tests passed!\n");
 }
