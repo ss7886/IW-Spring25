@@ -12,6 +12,7 @@ CC = gcc
 EXEC = -o  # Make executables
 OBJ = -c  # Make object files
 LIB = -shared -o  # Make libraries
+# PICFLAG := $(if $(filter Unix,$(OS)),-fPIC,)  # Add -fPIC when compiling library on UNIX
 
 RM = rm -f
 
@@ -33,7 +34,7 @@ testtree: tree.o testtree.o
 	$(CC) tree.o testtree.o $(EXEC) testtree -lm
 
 tree.$(EXT): tree.o
-	$(CC) $(LIB) tree.$(EXT) tree.o -lm
+	$(CC) $(LIB) tree.$(EXT) tree.o -lm -fPIC
 
 testtree.o: testtree.c
 	$(CC) $(OBJ) testtree.c
