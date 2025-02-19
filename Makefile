@@ -39,5 +39,5 @@ tree.$(EXT): tree.o
 testtree.o: testtree.c
 	$(CC) $(OBJ) testtree.c
 
-tree.o: tree.c tree.h $(PICFLAG)
-	$(CC) $(OBJ) tree.c
+tree.o: tree.c tree.h 
+	$(CC) $(OBJ) tree.c $(PICFLAG)
