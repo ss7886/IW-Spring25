@@ -1,4 +1,5 @@
 import ctypes
+import numpy as np
 
 # Load the shared library
 tree_lib = ctypes.CDLL("./tree.dll")  # Adjust path as needed
@@ -70,15 +71,27 @@ tree_lib.makeSplit.restype = ctypes.c_bool
 tree_lib.freeTree.argtypes = [Tree_T]
 tree_lib.freeTree.restype = None
 
+tree_lib.treeEval.argtypes = [Tree_T, ctypes.POINTER(ctypes.c_double)]
+tree_lib.treeEval.restype = ctypes.c_double
+
 # Example usage (if necessary)
 if __name__ == "__main__":
     leaf1, leaf2, tree = Tree_T(), Tree_T(), Tree_T()
     assert(tree_lib.makeLeaf(ctypes.byref(leaf1), 3, 5.0))
-    assert(tree_lib.makeLeaf(ctypes.byref(leaf2), 4, -2.0))
+    assert(tree_lib.makeLeaf(ctypes.byref(leaf2), 3, -2.0))
     assert(tree_lib.makeSplit(ctypes.byref(tree), 3, 0, 0.0, leaf1, leaf2))
     print(f"Tree Height: {tree_lib.treeDepth(tree)}")
     print(f"Tree Size: {tree_lib.treeSize(tree)}")
     print(f"Min Value: {tree_lib.treeMin(tree)}")
     print(f"Max Value: {tree_lib.treeMax(tree)}")
+
+    x1 = np.array([-1.0, 0.0, 0.0])
+    x2 = np.array([1.0, 0.0, 0.0])
+
+    y1 = tree_lib.treeEval(tree, x1.ctypes.data_as(ctypes.POINTER(ctypes.c_double)))
+    y2 = tree_lib.treeEval(tree, x2.ctypes.data_as(ctypes.POINTER(ctypes.c_double)))
+
+    print(f"f({x1}) = {y1}")
+    print(f"f({x2}) = {y2}")
     
     tree_lib.freeTree(tree)
