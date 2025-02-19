@@ -1,8 +1,13 @@
 import ctypes
+import os
+
 import numpy as np
 
-# Load the shared library
-tree_lib = ctypes.CDLL("./tree.dll")  # Adjust path as needed
+# Load the shared library based on OS
+if os.name == "nt":  # Windows
+    tree_lib = ctypes.CDLL("./tree.dll")
+else:  # Unix-based systems
+    tree_lib = ctypes.CDLL("./tree.so")
 
 # Forward declare the structures
 class Tree(ctypes.Structure):
