@@ -1,6 +1,7 @@
 #include <stdbool.h>
 #include <stdint.h>
 
+/* Only include __declspec(dllexport) if compiling on windows. */
 #ifdef _MSC_VER
     #define EXPORT_SYMBOL __declspec(dllexport)
 #else
@@ -45,6 +46,7 @@ EXPORT_SYMBOL bool makeSplit(Tree_T * result, uint32_t dim, uint32_t axis,
                double loc, Tree_T left, Tree_T right);
 EXPORT_SYMBOL bool copyTree(Tree_T * result, Tree_T tree);
 EXPORT_SYMBOL void freeTree(Tree_T tree);
+EXPORT_SYMBOL void freeTrees(int count, ...);
 
 EXPORT_SYMBOL double treeEval(Tree_T tree, double x[]);
 
@@ -52,5 +54,6 @@ EXPORT_SYMBOL bool treePruneLeft(Tree_T * result, Tree_T tree, uint32_t axis,
                                  double loc);
 EXPORT_SYMBOL bool treePruneRight(Tree_T * result, Tree_T tree, uint32_t axis,
                                   double loc);
+EXPORT_SYMBOL bool treeMerge(Tree_T * result, Tree_T tree1, Tree_T tree2);
 
 #endif

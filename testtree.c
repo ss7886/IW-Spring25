@@ -104,8 +104,60 @@ int main(void) {
 
     /* Free memory. */
     freeTree(copy);
-    freeTree(pruneLeft);
-    freeTree(pruneRight);
+    freeTrees(2, pruneLeft, pruneRight);
+
+    /* Test merge tree. */
+    Tree_T leaf1LL, leaf1LR, leaf1RL, leaf1RR;
+    assert(makeLeaf(&leaf1LL, 2, 1));
+    assert(makeLeaf(&leaf1LR, 2, 2));
+    assert(makeLeaf(&leaf1RL, 2, 3));
+    assert(makeLeaf(&leaf1RR, 2, 4));
+
+    Tree_T split1L, split1R, tree1;
+    assert(makeSplit(&split1L, 2, 1, 0.25, leaf1LL, leaf1LR));
+    assert(makeSplit(&split1R, 2, 1, 0.75, leaf1RL, leaf1RR));
+    assert(makeSplit(&tree1, 2, 0, 0.5, split1L, split1R));
+
+    Tree_T leaf2LL, leaf2LR, leaf2RL, leaf2RR;
+    assert(makeLeaf(&leaf2LL, 2, 1));
+    assert(makeLeaf(&leaf2LR, 2, 3));
+    assert(makeLeaf(&leaf2RL, 2, 2));
+    assert(makeLeaf(&leaf2RR, 2, 4));
+
+    Tree_T split2L, split2R, tree2;
+    assert(makeSplit(&split2L, 2, 0, 0.25, leaf2LL, leaf2LR));
+    assert(makeSplit(&split2R, 2, 0, 0.75, leaf2RL, leaf2RR));
+    assert(makeSplit(&tree2, 2, 1, 0.5, split2L, split2R));
+
+    Tree_T merge;
+    assert(treeMerge(&merge, tree1, tree2));
+
+    assert(treeMin(merge) == 2);
+    assert(treeMax(merge) == 8);
+    assert(treeDepth(merge) == 4);
+    assert(treeSize(merge) == 10);
+
+    double mx1[] = {0.125, 0.125};
+    double mx2[] = {0.375, 0.125};
+    double mx3[] = {0.125, 0.375};
+    double mx4[] = {0.375, 0.375};
+    double mx5[] = {0.25, 0.75};
+    double mx6[] = {0.75, 0.25};
+    double mx7[] = {0.625, 0.625};
+    double mx8[] = {0.875, 0.625};
+    double mx9[] = {0.625, 0.875};
+    double mx10[] = {0.875, 0.875};
+
+    assert(treeEval(merge, mx1) == 2);
+    assert(treeEval(merge, mx2) == 4);
+    assert(treeEval(merge, mx3) == 3);
+    assert(treeEval(merge, mx4) == 5);
+    assert(treeEval(merge, mx5) == 4);
+    assert(treeEval(merge, mx6) == 6);
+    assert(treeEval(merge, mx7) == 5);
+    assert(treeEval(merge, mx8) == 7);
+    assert(treeEval(merge, mx9) == 6);
+    assert(treeEval(merge, mx10) == 8);
 
     printf("Tests passed!\n");
 }
