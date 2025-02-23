@@ -84,7 +84,19 @@ def make_tree_sklearn(reg: DecisionTreeRegressor) -> Tree:
     
     return Tree(make_node(0))
 
-def merge_trees(tree1: Tree, tree2: Tree):
+def prune_left(tree: Tree, axis: int, loc: float) -> Tree:
+    res_ptr = ffi.new("Tree_T *")
+    if not lib.treePruneLeft(res_ptr, tree._tree, axis, loc):
+        raise treeCFFIError("treePruneLeft failed.")
+    return Tree(res_ptr[0])
+
+def prune_right(tree: Tree, axis: int, loc: float) -> Tree:
+    res_ptr = ffi.new("Tree_T *")
+    if not lib.treePruneRight(res_ptr, tree._tree, axis, loc):
+        raise treeCFFIError("treePruneRight failed.")
+    return Tree(res_ptr[0])
+
+def merge_trees(tree1: Tree, tree2: Tree) -> Tree:
     res_ptr = ffi.new("Tree_T *")
     if not lib.treeMerge(res_ptr, tree1._tree, tree2._tree):
         raise treeCFFIError("treeMerge failed.")

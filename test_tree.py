@@ -1,4 +1,4 @@
-from tree import make_leaf, make_split, make_tree_sklearn, merge_trees
+from tree import *
 
 import numpy as np
 # import pytest
@@ -19,6 +19,61 @@ def test_make_tree():
     assert tree.eval(np.array([1, 1])) == 1.0
 
     tree.free()
+
+def test_prune_left():
+    splita = make_split(2, 1, 0.25, make_leaf(2, 1), make_leaf(2, 2))
+    splitb = make_split(2, 1, 0.75, make_leaf(2, 3), make_leaf(2, 4))
+    tree1 = make_split(2, 0, 0.5, splita, splitb)
+
+    prune1 = prune_left(tree1, 0, 0.6)
+    prune2 = prune_left(tree1, 0, 0.4)
+    prune3 = prune_left(tree1, 1, 0.5)
+
+    assert prune1.depth == 2
+    assert prune1.size == 4
+    assert prune2.depth == 1
+    assert prune2.size == 2
+    assert prune3.depth == 2
+    assert prune3.size == 3
+
+    tree1.free()
+    prune1.free()
+    prune2.free()
+    prune3.free()
+
+def test_prune_right():
+    splita = make_split(2, 1, 0.25, make_leaf(2, 1), make_leaf(2, 2))
+    splitb = make_split(2, 1, 0.75, make_leaf(2, 3), make_leaf(2, 4))
+    tree1 = make_split(2, 0, 0.5, splita, splitb)
+
+    prune1 = prune_right(tree1, 0, 0.6)
+    prune2 = prune_right(tree1, 0, 0.4)
+    prune3 = prune_right(tree1, 1, 0.5)
+
+    assert prune1.depth == 1
+    assert prune1.size == 2
+    assert prune2.depth == 2
+    assert prune2.size == 4
+    assert prune3.depth == 2
+    assert prune3.size == 3
+
+    tree1.free()
+    prune1.free()
+    prune2.free()
+    prune3.free()
+
+def test_prune():
+    splita = make_split(2, 1, 0.25, make_leaf(2, 1), make_leaf(2, 2))
+    splitb = make_split(2, 1, 0.75, make_leaf(2, 3), make_leaf(2, 4))
+    tree1 = make_split(2, 0, 0.5, splita, splitb)
+
+    prune1 = prune_left(tree1, 1, 0.6)
+    prune2 = prune_right(prune1, 1, 0.4)
+
+    assert prune2.depth == 1
+    assert prune2.size == 2
+    assert prune2.min == 2.0
+    assert prune2.max == 3.0
 
 def test_merge():
     split_1a = make_split(2, 1, 0.25, make_leaf(2, 1), make_leaf(2, 2))
@@ -53,7 +108,7 @@ def test_merge():
 
 def test_merge_self():
     """
-    Check that 
+    Check that a tree merged with itself has the same shape.
     """
     leaf_a = make_leaf(2, 0.0)
     leaf_b = make_leaf(2, 1.0)
