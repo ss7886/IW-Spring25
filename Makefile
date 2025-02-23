@@ -1,7 +1,7 @@
-TESTS = testtree
+TESTS = test_tree
 CFFI = _tree_cffi.*
 CFFI_BUILD = cffi_build.py
-INTERMEDIATE = tree.o testtree.o
+INTERMEDIATE = tree.o test_tree.o
 DIRS = __pycache__/ .pytest_cache/ Release/
 
 CC = gcc
@@ -42,11 +42,11 @@ cffi: $(CFFI_BUILD) tree.o cleanPython
 
 int: $(INTERMEDIATE)
 
-testtree: tree.o testtree.o
-	$(CC) tree.o testtree.o $(EXEC) testtree -lm
+test_tree: tree.o test_tree.o
+	$(CC) tree.o test_tree.o $(EXEC) test_tree -lm
 
-testtree.o: testtree.c
-	$(CC) $(OBJ) testtree.c
+test_tree.o: test_tree.c
+	$(CC) $(OBJ) test_tree.c
 
 tree.o: tree.c tree.h 
 	$(CC) $(OBJ) tree.c $(PICFLAG)
