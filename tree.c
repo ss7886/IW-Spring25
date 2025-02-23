@@ -234,7 +234,6 @@ bool treePruneLeftSafe(Tree_T * result, Tree_T tree, uint32_t axis,
     }
 
     Split_T split = tree->split;
-    bool success;
     if (axis != split->axis) {
         /* Prune both subtrees. */
         Tree_T left, right;
@@ -292,7 +291,6 @@ bool treePruneRightSafe(Tree_T * result, Tree_T tree, uint32_t axis,
     }
 
     Split_T split = tree->split;
-    bool success;
     if (axis != split->axis) {
         /* Prune both subtrees. */
         Tree_T left, right;

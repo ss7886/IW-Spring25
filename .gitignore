@@ -10,3 +10,9 @@
 *.exe
 *.dll
 *.so
+
+_*
+
+__pycache__/
+.pytest_cache/
+Release/
