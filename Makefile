@@ -1,5 +1,5 @@
 TESTS = testtree
-CFFI = _tree_cffi.c
+CFFI = _tree_cffi.*
 CFFI_BUILD = cffi_build.py
 INTERMEDIATE = tree.o testtree.o
 DIRS = __pycache__/ .pytest_cache/ Release/
@@ -25,7 +25,7 @@ cleanPython: delDirectories
 	$(RM) $(CFFI) *.pyd
 
 clobber: clean cleanPython
-	$(RM) $(INTERMEDIATE) $(CFFI)
+	$(RM) $(INTERMEDIATE)
 
 # Run tests
 pytest:
