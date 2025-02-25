@@ -1,4 +1,5 @@
 #include <assert.h>
+#include <stdlib.h>
 #include <stdio.h>
 #include "tree.h"
 
@@ -59,6 +60,15 @@ int main(void) {
     assert(treeEval(tree, x5) == 0.5);
     assert(treeEval(tree, x6) == 0.6);
 
+    /* Test feature importance. */
+    double * importances = calloc(3, sizeof(double));
+    assert(importances != NULL);
+    featureImportance(importances, tree);
+    assert(importances[0] == 0.3125);
+    assert(importances[1] == 0.375);
+    assert(importances[2] == 0.3125);
+    free(importances);
+
     /* Test copy. */
     Tree_T copy;
     assert(copyTree(&copy, tree));
@@ -82,6 +92,21 @@ int main(void) {
     assert(treeEval(pruneLeft, x4) == 0.4);
     assert(treeEval(pruneLeft, x5) == 0.4);
     assert(treeEval(pruneLeft, x6) == 0.4);
+    freeTree(pruneLeft);    
+
+    /* Test prune left in place. */
+    assert (copyTree(&pruneLeft, tree));
+    pruneLeft = treePruneLeftInPlace(pruneLeft, 0, 0.5);
+    assert(treeDepth(pruneLeft) == 2);
+    assert(treeSize(pruneLeft) == 4);
+
+    assert(treeEval(pruneLeft, x1) == 0.1);
+    assert(treeEval(pruneLeft, x2) == 0.2);
+    assert(treeEval(pruneLeft, x3) == 0.3);
+    assert(treeEval(pruneLeft, x4) == 0.4);
+    assert(treeEval(pruneLeft, x5) == 0.4);
+    assert(treeEval(pruneLeft, x6) == 0.4);
+    freeTree(pruneLeft);  
 
     /* Test prune right. */
     Tree_T pruneRight;
@@ -95,16 +120,28 @@ int main(void) {
     assert(treeEval(pruneRight, x4) == 0.4);
     assert(treeEval(pruneRight, x5) == 0.5);
     assert(treeEval(pruneRight, x6) == 0.6);
+    freeTree(pruneRight);
+
+    /* Test prune right in place. */
+    assert(copyTree(&pruneRight, tree));
+    pruneRight = treePruneRightInPlace(pruneRight, 0, 0.5);
+    assert(treeDepth(pruneRight) == 3);
+    assert(treeSize(pruneRight) == 5);
+
+    assert(treeEval(pruneRight, x1) == 0.1);
+    assert(treeEval(pruneRight, x2) == 0.2);
+    assert(treeEval(pruneRight, x3) == 0.4);
+    assert(treeEval(pruneRight, x4) == 0.4);
+    assert(treeEval(pruneRight, x5) == 0.5);
+    assert(treeEval(pruneRight, x6) == 0.6);
+    freeTree(pruneRight);
 
     /* Test that copies are still ok after freeing tree. */
     freeTree(tree);
     assert(treeEval(copy, x1) == 0.1);
-    assert(treeEval(pruneLeft, x1) == 0.1);
-    assert(treeEval(pruneRight, x1) == 0.1);
 
     /* Free memory. */
     freeTree(copy);
-    freeTrees(2, pruneLeft, pruneRight);
 
     /* Test merge tree. */
     Tree_T leaf1LL, leaf1LR, leaf1RL, leaf1RR;

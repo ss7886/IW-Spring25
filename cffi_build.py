@@ -1,4 +1,6 @@
+from argparse import ArgumentParser
 import os
+import sys
 
 from cffi import FFI
 
@@ -20,7 +22,8 @@ def read_header(path: str) -> str:
                 string += line
     return string
 
-def compile_library(output_path: str, lib_path: str, header_path: str):
+def compile_library(output_path: str, src_path: str, header_path: str,
+                    debug: bool = False):
     """
     Return CFFI library.
 
@@ -33,9 +36,26 @@ def compile_library(output_path: str, lib_path: str, header_path: str):
     ffi = FFI()
 
     ffi.cdef(read_header(header_path))
-    # ffi.set_source(output_path, f'#include "{header_path}"', libraries=[lib_path], library_directory=".")
-    ffi.set_source(output_path, f'#include "{header_path}"', sources=["tree.c"], extra_compile_args=['-U', 'NDEBUG'])
+    extra_args = []
+    if debug:
+        extra_args.append('-U')
+        extra_args.append('NDEBUG')
+    ffi.set_source(output_path, f'#include "{header_path}"',
+                   sources=[src_path], extra_compile_args=extra_args)
     ffi.compile()
 
+def handle_args():
+    """
+    Handle and return arguments using ArgumentParser.
+    """
+    parser = ArgumentParser(prog=sys.argv[0],
+                            description="Build CFFI.",
+                            allow_abbrev=False)
+    parser.add_argument("-d", "--debug", action="store_true",
+                        help="the host on which the server is running")
+    args = vars(parser.parse_args())
+    return args["debug"]
+
 if __name__ == "__main__":
-    lib = compile_library("_tree_cffi", "tree", "tree.h")
+    debug = handle_args()
+    lib = compile_library("_tree_cffi", "tree.c", "tree.h", debug)

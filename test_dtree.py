@@ -1,7 +1,9 @@
-from tree import *
+import tracemalloc
+
+from dtree import *
 
 import numpy as np
-# import pytest
+import pytest
 from sklearn.tree import DecisionTreeRegressor
 
 def test_make_tree():
@@ -20,14 +22,32 @@ def test_make_tree():
 
     tree.free()
 
+def test_copy():    
+    leaf_a = make_leaf(2, 0.0)
+    leaf_b = make_leaf(2, 1.0)
+    tree = make_split(2, 0, 0.5, leaf_a, leaf_b)
+    copy = tree.copy()
+
+    assert tree.eval([0, 0]) == copy.eval([0, 0])
+    assert tree.eval([1, 1]) == copy.eval([1, 1])
+    assert tree.eval([0.5, 0.5]) == copy.eval([0.5, 0.5])
+
+    tree.free()
+
+    assert copy.eval([0, 0]) == 0.0
+    assert copy.eval([1, 1]) == 1.0
+    assert copy.eval([0.5, 0.5]) == 0.0
+
+    copy.free()
+
 def test_prune_left():
     splita = make_split(2, 1, 0.25, make_leaf(2, 1), make_leaf(2, 2))
     splitb = make_split(2, 1, 0.75, make_leaf(2, 3), make_leaf(2, 4))
-    tree1 = make_split(2, 0, 0.5, splita, splitb)
+    tree = make_split(2, 0, 0.5, splita, splitb)
 
-    prune1 = prune_left(tree1, 0, 0.6)
-    prune2 = prune_left(tree1, 0, 0.4)
-    prune3 = prune_left(tree1, 1, 0.5)
+    prune1 = tree.copy().prune_left(0, 0.6)
+    prune2 = tree.copy().prune_left(0, 0.4)
+    prune3 = tree.copy().prune_left(1, 0.5)
 
     assert prune1.depth == 2
     assert prune1.size == 4
@@ -36,7 +56,7 @@ def test_prune_left():
     assert prune3.depth == 2
     assert prune3.size == 3
 
-    tree1.free()
+    tree.free()
     prune1.free()
     prune2.free()
     prune3.free()
@@ -44,11 +64,11 @@ def test_prune_left():
 def test_prune_right():
     splita = make_split(2, 1, 0.25, make_leaf(2, 1), make_leaf(2, 2))
     splitb = make_split(2, 1, 0.75, make_leaf(2, 3), make_leaf(2, 4))
-    tree1 = make_split(2, 0, 0.5, splita, splitb)
+    tree = make_split(2, 0, 0.5, splita, splitb)
 
-    prune1 = prune_right(tree1, 0, 0.6)
-    prune2 = prune_right(tree1, 0, 0.4)
-    prune3 = prune_right(tree1, 1, 0.5)
+    prune1 = tree.copy().prune_right(0, 0.6)
+    prune2 = tree.copy().prune_right(0, 0.4)
+    prune3 = tree.copy().prune_right(1, 0.5)
 
     assert prune1.depth == 1
     assert prune1.size == 2
@@ -57,7 +77,7 @@ def test_prune_right():
     assert prune3.depth == 2
     assert prune3.size == 3
 
-    tree1.free()
+    tree.free()
     prune1.free()
     prune2.free()
     prune3.free()
@@ -65,15 +85,17 @@ def test_prune_right():
 def test_prune():
     splita = make_split(2, 1, 0.25, make_leaf(2, 1), make_leaf(2, 2))
     splitb = make_split(2, 1, 0.75, make_leaf(2, 3), make_leaf(2, 4))
-    tree1 = make_split(2, 0, 0.5, splita, splitb)
+    tree = make_split(2, 0, 0.5, splita, splitb)
 
-    prune1 = prune_left(tree1, 1, 0.6)
-    prune2 = prune_right(prune1, 1, 0.4)
+    tree.prune_left(1, 0.6)
+    tree.prune_right(1, 0.4)
 
-    assert prune2.depth == 1
-    assert prune2.size == 2
-    assert prune2.min == 2.0
-    assert prune2.max == 3.0
+    assert tree.depth == 1
+    assert tree.size == 2
+    assert tree.min == 2.0
+    assert tree.max == 3.0
+
+    tree.free()
 
 def test_merge():
     split_1a = make_split(2, 1, 0.25, make_leaf(2, 1), make_leaf(2, 2))
@@ -133,9 +155,42 @@ def test_merge_self():
     tree.free()
     merge.free()
 
+def test_feature_importance():
+    splitRL = make_split(3, 0, 0, make_leaf(3, 0), make_leaf(3, 0))
+    splitRR = make_split(3, 2, 0, make_leaf(3, 0), make_leaf(3, 0))
+    splitL = make_split(3, 2, 0, make_leaf(3, 0), make_leaf(3, 0))
+    splitR = make_split(3, 0, 0, splitRL, splitRR)
+    tree = make_split(3, 1, 0, splitL, splitR)
+
+    importances = tree.feature_importance()
+    assert np.array_equal(importances, np.array([0.3125, 0.375, 0.3125]))
+
+    tree.free()
+
+def test_free():
+    leaf_a = make_leaf(2, 0.0)
+    leaf_b = make_leaf(2, 1.0)
+    tree = make_split(2, 0, 0.5, leaf_a, leaf_b)
+    tree.free()
+
+    with pytest.raises(treeCFFIError):
+        tree.eval([0, 0]) == 0.0
+    with pytest.raises(treeCFFIError):
+        tree.free()
+    with pytest.raises(treeCFFIError):
+        tree.copy()
+    with pytest.raises(treeCFFIError):
+        tree.prune_left(0, 0)
+    with pytest.raises(treeCFFIError):
+        tree.prune_right(0, 0)
+    with pytest.raises(treeCFFIError):
+        merge_trees(tree, tree)
+    with pytest.raises(treeCFFIError):
+        tree.feature_importance()
+
 def test_auto_dataset():
     missing_data = lambda x : 100. if x == '?' else float(x)
-    data = np.loadtxt("datasets/Auto.data", converters=missing_data, 
+    data = np.loadtxt("datasets/Auto.data", converters=missing_data,
                       skiprows=1, usecols=[0, 1, 2, 3, 4, 5, 6, 7])
 
     np.random.seed(12345)

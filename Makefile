@@ -8,6 +8,7 @@ CC = gcc
 EXEC = -o  # Make executables
 OBJ = -c  # Make object files
 PICFLAG := $(if $(filter Unix,$(OS)),-fPIC,)  # Add -fPIC when compiling library on UNIX
+PY_DEBUG = --debug  # Import C library with assertions
 
 RM = rm -f
 RMDIR = rm -r -f
@@ -31,14 +32,16 @@ clobber: clean cleanPython
 pytest:
 	pytest
 
-runtests: pytest
+ctests:
 	./$(TESTS)
+
+runtests: pytest ctests
 
 # Build files
 tests: $(TESTS)
 
 cffi: $(CFFI_BUILD) tree.o cleanPython 
-	python $(CFFI_BUILD)
+	python $(CFFI_BUILD) $(PY_DEBUG)
 
 int: $(INTERMEDIATE)
 
