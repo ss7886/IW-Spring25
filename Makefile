@@ -8,7 +8,7 @@ CC = gcc
 EXEC = -o  # Make executables
 OBJ = -c  # Make object files
 PICFLAG := $(if $(filter Unix,$(OS)),-fPIC,)  # Add -fPIC when compiling library on UNIX
-PY_DEBUG = --debug  # Import C library with assertions
+PY_DEBUG =  # Import C library with assertions
 
 RM = rm -f
 RMDIR = rm -r -f
