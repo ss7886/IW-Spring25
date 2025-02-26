@@ -261,10 +261,10 @@ bool treePruneLeftSafe(Tree_T * result, const Tree_T tree, uint32_t axis,
         return true;
     }
 
-    if (loc <= split->loc) {
+    if (loc < split->loc) {
         /* Prune left subtree, drop right subtree. */
         return treePruneLeftSafe(result, split->left, axis, loc);
-    } else {
+    } else if (loc > split->loc) {
         /* Copy left subtree, prune right subtree. */
         Tree_T left, right;
         if (!copyTreeSafe(&left, split->left)) {
@@ -280,6 +280,9 @@ bool treePruneLeftSafe(Tree_T * result, const Tree_T tree, uint32_t axis,
             return false;
         }
         return true;
+    } else {
+        /* Return left subtree. */
+        return copyTreeSafe(result, split->left);
     }
 }
 
@@ -357,7 +360,7 @@ bool treePruneRightSafe(Tree_T * result, const Tree_T tree, uint32_t axis,
         return true;
     }
 
-    if (loc <= split->loc) {
+    if (loc < split->loc) {
         /* Prune left subtree, copy right subtree. */
         Tree_T left, right;
         if (!treePruneRightSafe(&left, split->left, axis, loc)) {
@@ -372,9 +375,12 @@ bool treePruneRightSafe(Tree_T * result, const Tree_T tree, uint32_t axis,
             freeTrees(2, left, right);
         }
         return true;
-    } else {
+    } else if (loc > split->loc) {
         /* Prune right subtree, drop left subtree. */
         return treePruneRightSafe(result, split->right, axis, loc);
+    } else {
+        /* Return right subtree. */
+        return copyTreeSafe(result, split->right);
     }
 }
 

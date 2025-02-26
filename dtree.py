@@ -58,6 +58,11 @@ class Tree:
             raise treeCFFIError("Tree pointer is NULL.")
         return True
     
+    def free(self):
+        assert self._check_tree()
+        lib.freeTree(self._tree)
+        self._tree = ffi.NULL
+    
     def copy(self) -> 'Tree':
         """
         Does not create python objects for tree.left and tree.right, even if they
@@ -70,11 +75,6 @@ class Tree:
             raise treeCFFIError("copyTree failed.")
         return Tree(pointer[0])
     
-    def free(self):
-        assert self._check_tree()
-        lib.freeTree(self._tree)
-        self._tree = ffi.NULL
-    
     def eval(self, x: Iterable[float]) -> float:
         assert self._check_tree()
 
@@ -85,15 +85,15 @@ class Tree:
         
         return lib.treeEval(self._tree, c_arr)
     
-    def prune_left(self, axis: int, loc: float) -> 'Tree':
+    def prune_left(self, axis: int, threshold: float) -> 'Tree':
         assert self._check_tree()
-        self._tree = lib.treePruneLeftInPlace(self._tree, axis, loc)
+        self._tree = lib.treePruneLeftInPlace(self._tree, axis, threshold)
         self._update_stats()
         return self
 
-    def prune_right(self, axis: int, loc: float) -> 'Tree':
+    def prune_right(self, axis: int, threshold: float) -> 'Tree':
         assert self._check_tree()
-        self._tree = lib.treePruneRightInPlace(self._tree, axis, loc)
+        self._tree = lib.treePruneRightInPlace(self._tree, axis, threshold)
         self._update_stats()
         return self
 
