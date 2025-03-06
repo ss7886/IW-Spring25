@@ -9,8 +9,10 @@ from sklearn.tree import DecisionTreeRegressor
 if TYPE_CHECKING:
     from _cffi_backend import _CDataBase
     TreePtr = _CDataBase  # For type-checking
+    ArrayPtr = _CDataBase
 else:
     TreePtr = object
+    ArrayPtr = object
 
 class treeCFFIError(Exception):
     def __init__(self, message):
@@ -19,6 +21,7 @@ class treeCFFIError(Exception):
 
 class Tree:
     _tree: TreePtr
+    dim: int
     left: 'Tree'
     right: 'Tree'
     min: float
@@ -26,28 +29,15 @@ class Tree:
     depth: int
     size: int
 
-    def __init__(self, ptr: TreePtr, left: 'Tree' = None, right: 'Tree' = None):
+    def __init__(self, ptr: TreePtr):
         self._tree = ptr
-        self.dim = ptr[0].dim
-        self.left = left
-        self.right = right
+        self.dim = lib.treeDim(ptr)
         self.min = lib.treeMin(ptr)
         self.max = lib.treeMax(ptr)
         self.depth = lib.treeDepth(ptr)
         self.size = lib.treeSize(ptr)
     
     def _update_stats(self):
-        if self._tree[0].split == ffi.NULL:
-            self.left = None
-            self.right = None
-        else:
-            if self.left is not None and (self._tree[0].split[0].left !=
-                                          self.left._tree):
-                self.left = None
-            if self.right is not None and (self._tree[0].split[0].right !=
-                                           self.right._tree):
-                self.right = None
-
         self.min = lib.treeMin(self._tree)
         self.max = lib.treeMax(self._tree)
         self.depth = lib.treeDepth(self._tree)
@@ -75,15 +65,21 @@ class Tree:
             raise treeCFFIError("copyTree failed.")
         return Tree(pointer[0])
     
-    def eval(self, x: Iterable[float]) -> float:
+    def _eval(self, c_arr: ArrayPtr) -> float:
         assert self._check_tree()
 
+        return lib.treeEval(self._tree, c_arr)
+    
+    def _get_c_arr(x: Iterable[float]) -> ArrayPtr:
         if isinstance(x, np.ndarray) and x.dtype == np.float64:
             c_arr = ffi.from_buffer("double[]", x)
         else:
             c_arr = ffi.new("double[]", list(x))
-        
-        return lib.treeEval(self._tree, c_arr)
+        return c_arr
+    
+    def eval(self, x: Iterable[float]) -> float:
+        c_arr = self._get_c_arr(x)        
+        return self._eval(self._tree, c_arr)
     
     def prune_left(self, axis: int, threshold: float) -> 'Tree':
         assert self._check_tree()
@@ -95,6 +91,18 @@ class Tree:
         assert self._check_tree()
         self._tree = lib.treePruneRightInPlace(self._tree, axis, threshold)
         self._update_stats()
+        return self
+    
+    def prune_box(self, min_bound: Iterable[float],
+                  max_bound: Iterable[float]):
+        assert self._check_tree()
+        assert len(min_bound) == self.dim
+        assert len(max_bound) == self.dim
+
+        for i, x in enumerate(min_bound):
+            self.prune_right(i, x)
+        for i, x in enumerate(max_bound):
+            self.prune_left(i, x)
         return self
 
     def feature_importance(self) -> np.typing.NDArray:
@@ -132,7 +140,7 @@ def make_split(dim: int, axis: int, loc: float, left: Tree,
     assert left._check_tree()
     assert right._check_tree()
     ptr = _make_split_ptr(dim, axis, loc, left._tree, right._tree)
-    return Tree(ptr, left, right)
+    return Tree(ptr)
 
 def make_tree_sklearn(reg: DecisionTreeRegressor) -> Tree:
     dim = reg.n_features_in_

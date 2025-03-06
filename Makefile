@@ -1,14 +1,16 @@
-TESTS = test_tree
+TESTS = test_symtable test_tree # test_tree_dag
+TIMING_DIR = examples/timing/
+TIMETESTS = merge_timing.py sample_timing.py
 CFFI = _tree_cffi.*
 CFFI_BUILD = cffi_build.py
-INTERMEDIATE = tree.o test_tree.o
+INTERMEDIATE = symtable_hash.o tree.o tree_dag.o test_symtable.o test_tree.o
 DIRS = __pycache__/ .pytest_cache/ Release/
 
 CC = gcc
-EXEC = -o  # Make executables
-OBJ = -c  # Make object files
-PICFLAG := $(if $(filter Unix,$(OS)),-fPIC,)  # Add -fPIC when compiling library on UNIX
-PY_DEBUG =  # Import C library with assertions
+MAKE_EX = -o  # Make executables
+MAKE_OBJ = -c  # Make object files
+PY_DEBUG = # --debug  # Import C library with assertions
+RUN_TIME_TEST = python -m cProfile
 
 RM = rm -f
 RMDIR = rm -r -f
@@ -23,17 +25,20 @@ delDirectories:
 	$(RMDIR) $(DIRS)
 
 cleanPython: delDirectories
-	$(RM) $(CFFI) *.pyd
+	$(RM) $(CFFI) *.pyd *.pstats
 
 clobber: clean cleanPython
 	$(RM) $(INTERMEDIATE)
 
 # Run tests
 pytest:
-	pytest
+	python -m pytest
+
+timetests:
+	for test in $(TIMETESTS); do $(RUN_TIME_TEST) -o _$$test.pstats $(TIMING_DIR)$$test; done;
 
 ctests:
-	./$(TESTS)
+	for test in $(TESTS); do ./$$test; done
 
 runtests: pytest ctests
 
@@ -43,13 +48,28 @@ tests: $(TESTS)
 cffi: $(CFFI_BUILD) tree.o cleanPython 
 	python $(CFFI_BUILD) $(PY_DEBUG)
 
-int: $(INTERMEDIATE)
+# Tests
+test_symtable: symtable_hash.o test_symtable.o
+	$(CC) symtable_hash.o test_symtable.o $(MAKE_EX) test_symtable
 
 test_tree: tree.o test_tree.o
-	$(CC) tree.o test_tree.o $(EXEC) test_tree -lm
+	$(CC) tree.o test_tree.o $(MAKE_EX) test_tree -lm
 
-test_tree.o: test_tree.c
-	$(CC) $(OBJ) test_tree.c
+test_tree_dag: tree_dag.o test_tree.o
+	$(CC) tree_dag.o test_tree.o $(MAKE_EX) test_tree -lm
+
+# Object files
+symtable_hash.o: symtable_hash.c symtable.h
+	$(CC) $(MAKE_OBJ) symtable_hash.c
+
+test_symtable.o: test_symtable.c symtable.h
+	$(CC) $(MAKE_OBJ) test_symtable.c
+
+test_tree.o: test_tree.c tree.h
+	$(CC) $(MAKE_OBJ) test_tree.c
 
 tree.o: tree.c tree.h 
-	$(CC) $(OBJ) tree.c $(PICFLAG)
+	$(CC) $(MAKE_OBJ) tree.c
+
+tree_dag.o: tree_dag.c tree.h 
+	$(CC) $(MAKE_OBJ) tree_dag.c

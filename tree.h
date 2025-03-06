@@ -1,34 +1,16 @@
-#include <stdbool.h>
-#include <stdint.h>
-
 #ifndef TREE_INCLUDED
 #define TREE_INCLUDED
 
+#include <stdbool.h>
+#include <stdint.h>
+
 typedef struct tree * Tree_T;
-typedef struct split * Split_T;
 
-struct tree {
-    bool isLeaf;
-    uint32_t dim;
-    double val;
-    Split_T split;
-};
-
-struct split {
-    uint32_t axis;
-    double loc;
-    Tree_T left;
-    Tree_T right;
-    double min;
-    double max;
-    uint32_t depth;
-    uint32_t size;
-};
-
+uint32_t treeDim(const Tree_T tree);
 double treeMin(const Tree_T tree);
 double treeMax(const Tree_T tree);
 uint32_t treeDepth(const Tree_T tree);
-uint32_t treeSize(const Tree_T tree);
+uint64_t treeSize(const Tree_T tree);
 
 bool validTree(const Tree_T tree);
 bool validLeaf(const Tree_T tree);
@@ -52,5 +34,6 @@ Tree_T treePruneRightInPlace(Tree_T tree, uint32_t axis, double loc);
 bool treeMerge(Tree_T * result, const Tree_T tree1, const Tree_T tree2);
 
 void featureImportance(double importances[], const Tree_T tree);
+
 
 #endif

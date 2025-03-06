@@ -196,5 +196,7 @@ int main(void) {
     assert(treeEval(merge, mx9) == 6);
     assert(treeEval(merge, mx10) == 8);
 
-    printf("Tests passed!\n");
+    printf("test_tree: Tests passed!\n");
+
+    return 0;
 }

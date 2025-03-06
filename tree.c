@@ -8,6 +8,36 @@
 
 #include "tree.h"
 
+typedef struct split * Split_T;
+
+struct tree {
+    bool isLeaf;
+    uint32_t dim;
+    double val;
+    Split_T split;
+};
+
+struct split {
+    uint32_t axis;
+    double loc;
+    Tree_T left;
+    Tree_T right;
+    double min;
+    double max;
+    uint32_t depth;
+    uint64_t size;
+};
+
+uint32_t treeDim(const Tree_T tree) {
+    assert(tree != NULL);
+    return tree->dim;
+}
+
+double treeVal(const Tree_T tree) {
+    assert(tree != NULL);
+    return tree->val;
+}
+
 double treeMin(const Tree_T tree) {
     assert(tree != NULL);
 
@@ -41,7 +71,7 @@ uint32_t treeDepth(const Tree_T tree) {
     return tree->split->depth;
 }
 
-uint32_t treeSize(const Tree_T tree) {
+uint64_t treeSize(const Tree_T tree) {
     assert(tree != NULL);
 
     if (tree->isLeaf) {
@@ -73,9 +103,9 @@ bool validSplit(const Tree_T tree) {
     Tree_T right = split->right;
 
     return !tree->isLeaf &&
-    tree->dim == left->dim &&
-    tree->dim == right->dim &&
-    split->axis < tree->dim &&
+    treeDim(tree) == treeDim(left) &&
+    treeDim(tree) == treeDim(right) &&
+    split->axis < treeDim(tree) &&
     split->min == fmin(treeMin(left), treeMin(right)) &&
     split->max == fmax(treeMax(left), treeMax(right)) &&
     split->depth == fmax(treeDepth(left), treeDepth(right)) + 1 &&
@@ -108,7 +138,7 @@ bool makeSplit(Tree_T * result, uint32_t dim, uint32_t axis,
     assert(result != NULL);
     assert(axis < dim);
     assert(validTree(left) && validTree(right));
-    assert(dim == left->dim && dim == right->dim);
+    assert(dim == treeDim(left) && dim == treeDim(right));
     *result = NULL;
 
     Tree_T newTree = malloc(sizeof(struct tree));
@@ -151,7 +181,7 @@ void updateSplit(Split_T split) {
 bool copyTreeSafe(Tree_T * result, const Tree_T tree) {
     *result = NULL;
     if (tree->isLeaf) {
-        return makeLeaf(result, tree->dim, tree->val);
+        return makeLeaf(result, treeDim(tree), tree->val);
     }
 
     Split_T split = tree->split;
@@ -163,7 +193,8 @@ bool copyTreeSafe(Tree_T * result, const Tree_T tree) {
         freeTree(left);
         return false;
     }
-    if(!makeSplit(result, tree->dim, split->axis, split->loc, left, right)) {
+    if(!makeSplit(result, treeDim(tree), split->axis, split->loc, left,
+                  right)) {
         freeTrees(2, left, right);
         return false;
     }
@@ -253,7 +284,7 @@ bool treePruneLeftSafe(Tree_T * result, const Tree_T tree, uint32_t axis,
             freeTree(left);
             return false;
         }
-        if (!makeSplit(result, tree->dim, split->axis,
+        if (!makeSplit(result, treeDim(tree), split->axis,
                          split->loc, left, right)) {
             freeTrees(2, left, right);
             return false;
@@ -274,7 +305,7 @@ bool treePruneLeftSafe(Tree_T * result, const Tree_T tree, uint32_t axis,
             freeTree(left);
             return false;
         }
-        if (!makeSplit(result, tree->dim, split->axis,
+        if (!makeSplit(result, treeDim(tree), split->axis,
                          split->loc, left, right)) {
             freeTrees(2, left, right);
             return false;
@@ -291,7 +322,7 @@ bool treePruneLeft(Tree_T * result, const Tree_T tree, uint32_t axis,
     /* Only validate arguments once. */
     assert(result != NULL);
     assert(validTree(tree));
-    assert(axis < tree->dim);
+    assert(axis < treeDim(tree));
 
     return treePruneLeftSafe(result, tree, axis, loc);
 }
@@ -329,7 +360,7 @@ Tree_T treePruneLeftInPlaceSafe(Tree_T tree, uint32_t axis, double loc) {
 Tree_T treePruneLeftInPlace(Tree_T tree, uint32_t axis, double loc) {
     /* Only validate arguments once. */
     assert(validTree(tree));
-    assert(axis < tree->dim);
+    assert(axis < treeDim(tree));
 
     return treePruneLeftInPlaceSafe(tree, axis, loc);
 }
@@ -352,7 +383,7 @@ bool treePruneRightSafe(Tree_T * result, const Tree_T tree, uint32_t axis,
             freeTree(left);
             return false;
         }
-        if (!makeSplit(result, tree->dim, split->axis,
+        if (!makeSplit(result, treeDim(tree), split->axis,
                          split->loc, left, right)) {
             freeTrees(2, left, right);
             return false;
@@ -370,7 +401,7 @@ bool treePruneRightSafe(Tree_T * result, const Tree_T tree, uint32_t axis,
             freeTree(left);
             return false;
         }
-        if (!makeSplit(result, tree->dim, split->axis,
+        if (!makeSplit(result, treeDim(tree), split->axis,
                        split->loc, left, right)) {
             freeTrees(2, left, right);
         }
@@ -389,7 +420,7 @@ bool treePruneRight(Tree_T * result, const Tree_T tree, uint32_t axis,
     /* Only validate arguments once. */
     assert(result != NULL);
     assert(validTree(tree));
-    assert(axis < tree->dim);
+    assert(axis < treeDim(tree));
 
     return treePruneRightSafe(result, tree, axis, loc);
 }
@@ -427,7 +458,7 @@ Tree_T treePruneRightInPlaceSafe(Tree_T tree, uint32_t axis, double loc) {
 Tree_T treePruneRightInPlace(Tree_T tree, uint32_t axis, double loc) {
     /* Only validate arguments once. */
     assert(validTree(tree));
-    assert(axis < tree->dim);
+    assert(axis < treeDim(tree));
 
     return treePruneRightInPlaceSafe(tree, axis, loc);
 }
@@ -459,7 +490,7 @@ bool treeAddConst(Tree_T * result, const Tree_T tree, double c) {
 
 bool treeMergeSafe(Tree_T * result, const Tree_T tree1, const Tree_T tree2) {
     *result = NULL;
-    uint32_t dim = tree1->dim;
+    uint32_t dim = treeDim(tree1);
 
     /* One or both trees are leaves. */
     if (tree1->isLeaf) {
@@ -655,7 +686,7 @@ bool treeMerge(Tree_T * result, const Tree_T tree1, const Tree_T tree2) {
     assert(result != NULL);
     assert(validTree(tree1));
     assert(validTree(tree2));
-    assert(tree1->dim == tree2->dim);
+    assert(treeDim(tree1) == treeDim(tree2));
 
     return treeMergeSafe(result, tree1, tree2);
 }
@@ -685,7 +716,7 @@ void featureImportance(double importances[], const Tree_T tree) {
 
     /* Clear array. */
     uint32_t i;
-    for (i = 0; i < tree->dim; i++) {
+    for (i = 0; i < treeDim(tree); i++) {
         importances[i] = 0;
     }
 
@@ -694,10 +725,10 @@ void featureImportance(double importances[], const Tree_T tree) {
 
     /* Normalize importances. */
     double sum = 0;
-    for (i = 0; i < tree->dim; i++) {
+    for (i = 0; i < treeDim(tree); i++) {
         sum += importances[i];
     }
-    for (i = 0; i < tree->dim; i++) {
+    for (i = 0; i < treeDim(tree); i++) {
         importances[i] /= sum;
     }
 }

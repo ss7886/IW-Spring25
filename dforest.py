@@ -7,17 +7,25 @@ import numpy as np
 
 class Forest:
     trees: list[dtree.Tree]
-    min: float
-    max: float
+    n_trees: int
+    dim: int
+    min_bound: float
+    max_bound: float
     champ_min: float
     champ_min_x: Iterable[float]
     champ_max: float
     champ_max_x: Iterable[float]
+    importances: list[np.typing.NDArray]
     _factor: float
 
     def __init__(self, trees: list[dtree.Tree], factor: float = None):
+        assert len(trees) >= 1
         self.trees = trees
-        self.n_trees = len(trees)        
+        self.n_trees = len(trees)
+        self.dim = trees[0].dim
+        for tree in trees:
+            assert tree.dim == self.dim
+
         self._factor = 1 / self.n_trees if factor is None else factor
         self.min_bound = sum([tree.min for tree in trees]) * self._factor
         self.max_bound = sum([tree.max for tree in trees]) * self._factor
@@ -41,7 +49,13 @@ class Forest:
         trees = []
         for tree in self.trees:
             trees.append(tree.copy())
-        return Forest(trees, self._factor)
+
+        forest = Forest(trees, self._factor)
+        forest.champ_min = self.champ_min
+        forest.champ_min_x = self.champ_min_x
+        forest.champ_max = self.champ_max
+        forest.champ_max_x = self.champ_max_x
+        return forest
     
     def print_summary(self):
         print(f"Size of forest: {self.n_trees}")
@@ -54,9 +68,13 @@ class Forest:
     
     def eval(self, x: Iterable[float]) -> float:
         sum = 0.0
+
+        c_arr = dtree.Tree._get_c_arr(x)
+        
         for tree in self.trees:
-            sum += tree.eval(x)
+            sum += tree._eval(c_arr)
         sum *= self._factor
+
         if self.champ_max is None or sum > self.champ_max:
             self.champ_max = sum
             self.champ_max_x = x
@@ -65,14 +83,22 @@ class Forest:
             self.champ_min_x = x
         return sum
     
+    def sample(self, low: Iterable[float], high: Iterable[float], n: int):
+        assert n >= 1
+        assert len(low) == self.dim
+        assert len(high) == self.dim
+        X = np.random.uniform(low, high, (n, self.dim))
+        for x in X:
+            self.eval(x)
+    
     def prune_left(self, axis: int, threshold: float) -> 'Forest':
         for tree in self.trees:
             tree.prune_left(axis, threshold)
         self._update_stats()
-        if self.champ_min_x[axis] > threshold:
+        if self.champ_min_x is not None and self.champ_min_x[axis] > threshold:
             self.champ_min_x = None
             self.champ_min = None
-        if self.champ_max_x[axis] > threshold:
+        if self.champ_max_x is not None and self.champ_max_x[axis] > threshold:
             self.champ_max_x = None
             self.champ_max = None
         return self
@@ -81,12 +107,23 @@ class Forest:
         for tree in self.trees:
             tree.prune_right(axis, threshold)
         self._update_stats()
-        if self.champ_min_x[axis] < threshold:
+        if self.champ_min_x is not None and self.champ_min_x[axis] < threshold:
             self.champ_min_x = None
             self.champ_min = None
-        if self.champ_max_x[axis] < threshold:
+        if self.champ_max_x is not None and self.champ_max_x[axis] < threshold:
             self.champ_max_x = None
             self.champ_max = None
+        return self
+    
+    def prune_box(self, min_bound: Iterable[float],
+                  max_bound: Iterable[float]):
+        assert len(min_bound) == self.dim
+        assert len(max_bound) == self.dim
+
+        for i, x in enumerate(min_bound):
+            self.prune_right(i, x)
+        for i, x in enumerate(max_bound):
+            self.prune_left(i, x)
         return self
     
     def feature_importance(self) -> list[np.typing.NDArray]:
@@ -123,8 +160,12 @@ class Forest:
         self._update_stats(False)
         return self
 
-def make_forest_sklearn(forest: sklearn.ensemble, **kwargs):
+def make_forest_sklearn(forest: sklearn.ensemble, **kwargs) -> Forest:
     trees = []
     for tree in forest.estimators_:
         trees.append(dtree.make_tree_sklearn(tree, **kwargs))
     return Forest(trees)
+
+if __name__ == "__main__":
+    forest = Forest([dtree.make_leaf(3, 1)])
+    forest.sample([-1.0, -10.0, 5.0], [1.0, 10.0, 15.0], 10)
