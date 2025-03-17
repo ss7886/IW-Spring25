@@ -1,4 +1,4 @@
-from typing import Iterable, TYPE_CHECKING
+from typing import Iterable, Tuple, TYPE_CHECKING
 from weakref import finalize
 
 from _tree_cffi import ffi, lib
@@ -66,32 +66,60 @@ class Tree:
         return Tree(pointer[0])
     
     def _eval(self, c_arr: ArrayPtr) -> float:
-        assert self._check_tree()
-
         return lib.treeEval(self._tree, c_arr)
     
-    def _get_c_arr(x: Iterable[float]) -> ArrayPtr:
+    def _eval_matrix(self, c_arr: ArrayPtr, n: int) -> np.typing.NDArray:
+        res = lib.treeEvalMatrix(self._tree, c_arr, n)
+        if res == ffi.NULL:
+            raise treeCFFIError("treeEvalMatrix failed.")
+        buffer = ffi.buffer(res, n * ffi.sizeof("double"))
+        arr = np.frombuffer(buffer, dtype=np.float64).copy()
+        lib.freeArray(res)
+
+        # Make sure C Array gets freed after NumPy array is garbage collected
+        return arr
+    
+    @staticmethod
+    def _get_c_arr(x: Iterable[float]) -> Tuple[ArrayPtr, int]:
+        n = 1
         if isinstance(x, np.ndarray) and x.dtype == np.float64:
+            if x.ndim > 1:
+                n, _ = x.shape
             c_arr = ffi.from_buffer("double[]", x)
         else:
             c_arr = ffi.new("double[]", list(x))
-        return c_arr
-    
-    def eval(self, x: Iterable[float]) -> float:
-        c_arr = self._get_c_arr(x)        
-        return self._eval(self._tree, c_arr)
+            finalize(c_arr, ffi.release, c_arr)
+        return c_arr, n
+        
+    def eval(self, x: Iterable[float]) -> float | np.typing.NDArray:
+        assert self._check_tree()
+        c_arr, n = Tree._get_c_arr(x)
+        if n == 1:
+            return self._eval(c_arr)
+        else:
+            return self._eval_matrix(c_arr, n)
     
     def prune_left(self, axis: int, threshold: float) -> 'Tree':
         assert self._check_tree()
         self._tree = lib.treePruneLeftInPlace(self._tree, axis, threshold)
         self._update_stats()
         return self
+    
+    def prune_left_copy(self, axis: int, threshold: float) -> 'Tree':
+        assert self._check_tree()
+        treePtr = lib.treePruneLeft(self._tree, axis, threshold)
+        return Tree(treePtr)
 
     def prune_right(self, axis: int, threshold: float) -> 'Tree':
         assert self._check_tree()
         self._tree = lib.treePruneRightInPlace(self._tree, axis, threshold)
         self._update_stats()
         return self
+    
+    def prune_right_copy(self, axis: int, threshold: float) -> 'Tree':
+        assert self._check_tree()
+        treePtr = lib.treePruneRight(self._tree, axis, threshold)
+        return Tree(treePtr)
     
     def prune_box(self, min_bound: Iterable[float],
                   max_bound: Iterable[float]):
@@ -108,15 +136,26 @@ class Tree:
     def feature_importance(self) -> np.typing.NDArray:
         assert self._check_tree()
 
-        importances = ffi.new(f"double[{self.dim}]")
-        lib.featureImportance(importances, self._tree)
+        importances = lib.featureImportance(self._tree)
+        if importances == ffi.NULL:
+            raise treeCFFIError("featureImportance failed.")
         buffer = ffi.buffer(importances, self.dim * ffi.sizeof("double"))
         arr = np.frombuffer(buffer, dtype=np.float64)
 
         # Make sure C Array gets freed after NumPy array is garbage collected
-        finalize(arr, ffi.release, importances)
+        finalize(arr, lib.freeArray, importances)
 
         return arr
+    
+    def getTopSplit(self) -> Tuple[int, float]:
+        assert self._check_tree()
+        assert self.depth > 0
+
+        splitPtr = lib.getTopSplit(self._tree)
+        if splitPtr == ffi.NULL:
+            raise treeCFFIError("getSplitPointer failed.")
+        
+        return splitPtr[0].axis, splitPtr[0].threshold
 
 def _make_leaf_ptr(dim: int, value: float) -> TreePtr:
     pointer = ffi.new("Tree_T *")

@@ -1,5 +1,3 @@
-import tracemalloc
-
 from dtree import *
 
 import numpy as np
@@ -19,6 +17,17 @@ def test_make_tree():
 
     assert tree.eval(np.array([0, 0])) == 0.0
     assert tree.eval(np.array([1, 1])) == 1.0
+
+    tree.free()
+
+def test_eval_matrix():
+    leaf_a = make_leaf(2, 0.0)
+    leaf_b = make_leaf(2, 1.0)
+    tree = make_split(2, 0, 0.5, leaf_a, leaf_b)
+
+    X = np.array([[0, 0], [0, 1], [1, 0], [1, 1]], dtype='float64')
+    y = tree.eval(X)
+    assert np.array_equal(y, np.array([0, 0, 1, 1], dtype='float64'))
 
     tree.free()
 

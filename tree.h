@@ -6,6 +6,11 @@
 
 typedef struct tree * Tree_T;
 
+struct splitPoint {
+    uint32_t axis;
+    double threshold;
+};
+
 uint32_t treeDim(const Tree_T tree);
 double treeMin(const Tree_T tree);
 double treeMax(const Tree_T tree);
@@ -24,6 +29,7 @@ void freeTree(Tree_T tree);
 void freeTrees(int count, ...);
 
 double treeEval(const Tree_T tree, const double x[]);
+double * treeEvalMatrix(const Tree_T tree, const double x[], uint64_t n);
 
 bool treePruneLeft(Tree_T * result, const Tree_T tree, uint32_t axis,
                                  double loc);
@@ -33,7 +39,10 @@ bool treePruneRight(Tree_T * result, const Tree_T tree, uint32_t axis,
 Tree_T treePruneRightInPlace(Tree_T tree, uint32_t axis, double loc);
 bool treeMerge(Tree_T * result, const Tree_T tree1, const Tree_T tree2);
 
-void featureImportance(double importances[], const Tree_T tree);
+double * featureImportance(const Tree_T tree);
 
+struct splitPoint * getTopSplit(Tree_T tree);
+
+void freeArray(void * ptr);
 
 #endif

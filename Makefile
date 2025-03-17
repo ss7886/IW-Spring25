@@ -1,6 +1,6 @@
 TESTS = test_symtable test_tree # test_tree_dag
 TIMING_DIR = examples/timing/
-TIMETESTS = merge_timing.py sample_timing.py
+TIMETESTS = merge_timing.py sample_timing.py pso_timing.py
 CFFI = _tree_cffi.*
 CFFI_BUILD = cffi_build.py
 INTERMEDIATE = symtable_hash.o tree.o tree_dag.o test_symtable.o test_tree.o
@@ -9,8 +9,9 @@ DIRS = __pycache__/ .pytest_cache/ Release/
 CC = gcc
 MAKE_EX = -o  # Make executables
 MAKE_OBJ = -c  # Make object files
-PY_DEBUG = # --debug  # Import C library with assertions
-RUN_TIME_TEST = python -m cProfile
+PY_DEBUG = # --debug  # Add --debug flag to compile C library with assertions
+RUN_PYTEST = python -m pytest
+RUN_CPROFILE = python -m cProfile
 
 RM = rm -f
 RMDIR = rm -r -f
@@ -32,10 +33,10 @@ clobber: clean cleanPython
 
 # Run tests
 pytest:
-	python -m pytest
+	$(RUN_PYTEST)
 
 timetests:
-	for test in $(TIMETESTS); do $(RUN_TIME_TEST) -o _$$test.pstats $(TIMING_DIR)$$test; done;
+	for test in $(TIMETESTS); do $(RUN_CPROFILE) -o _$$test.pstats $(TIMING_DIR)$$test; done;
 
 ctests:
 	for test in $(TESTS); do ./$$test; done

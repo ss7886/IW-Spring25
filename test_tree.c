@@ -60,14 +60,33 @@ int main(void) {
     assert(treeEval(tree, x5) == 0.5);
     assert(treeEval(tree, x6) == 0.6);
 
+    /* Test eval matrix. */    
+    double x[][3] = {
+        {0.0, 0.0, -1.0},
+        {1.0, -1.0, 0.0},
+        {0.0, 1.0, 1.0},
+        {1.0, 1.0, 0.0},
+        {2.0, 1.0, 1.0},
+        {2.0, 1.0, 2.0}
+    };
+
+    double * y = treeEvalMatrix(tree, (double *) x, 6);
+    assert(y != NULL);
+    assert(y[0] == 0.1);
+    assert(y[1] == 0.2);
+    assert(y[2] == 0.3);
+    assert(y[3] == 0.4);
+    assert(y[4] == 0.5);
+    assert(y[5] == 0.6);
+    freeArray(y);
+
     /* Test feature importance. */
-    double * importances = calloc(3, sizeof(double));
+    double * importances = featureImportance(tree);
     assert(importances != NULL);
-    featureImportance(importances, tree);
     assert(importances[0] == 0.3125);
     assert(importances[1] == 0.375);
     assert(importances[2] == 0.3125);
-    free(importances);
+    freeArray(importances);
 
     /* Test copy. */
     Tree_T copy;

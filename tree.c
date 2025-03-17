@@ -264,7 +264,23 @@ double treeEval(const Tree_T tree, const double x[]) {
     assert(x != NULL);
 
     return treeEvalSafe(tree, x);
-};
+}
+
+double * treeEvalMatrix(const Tree_T tree, const double x[], uint64_t n) {
+    assert(validTree(tree));
+    assert(x != NULL);
+
+    double * result = calloc(n, sizeof(double));
+    if (result == NULL) {
+        return NULL;
+    }
+
+    for (uint64_t i = 0; i < n; i++) {
+        uint64_t index = i * tree->dim;
+        result[i] = treeEvalSafe(tree, &x[index]);
+    }
+    return result;
+}
 
 bool treePruneLeftSafe(Tree_T * result, const Tree_T tree, uint32_t axis, 
                        double loc) {
@@ -709,15 +725,13 @@ void featureImportanceSafe(double importances[], const Tree_T tree, uint32_t dep
     featureImportanceSafe(importances, split->right, depth + 1);
 }
 
-void featureImportance(double importances[], const Tree_T tree) {
+double * featureImportance(const Tree_T tree) {
     /* Only validate arguments once. */
-    assert(importances != NULL);
     assert(validTree(tree));
 
-    /* Clear array. */
-    uint32_t i;
-    for (i = 0; i < treeDim(tree); i++) {
-        importances[i] = 0;
+    double * importances = calloc(tree->dim, sizeof(double));
+    if (importances == NULL) {
+        return NULL;
     }
 
     /* Sum importances. */
@@ -725,10 +739,33 @@ void featureImportance(double importances[], const Tree_T tree) {
 
     /* Normalize importances. */
     double sum = 0;
-    for (i = 0; i < treeDim(tree); i++) {
+    for (uint32_t i = 0; i < treeDim(tree); i++) {
         sum += importances[i];
     }
-    for (i = 0; i < treeDim(tree); i++) {
+    for (uint32_t i = 0; i < treeDim(tree); i++) {
         importances[i] /= sum;
     }
+    return importances;
+}
+
+struct splitPoint * getTopSplit(Tree_T tree) {
+    assert(validTree(tree));
+
+    if (tree->isLeaf) {
+        return NULL;
+    }
+
+    struct splitPoint * split;
+    split = malloc(sizeof(struct splitPoint));
+    if (split == NULL) {
+        return NULL;
+    }
+
+    split->axis = tree->split->axis;
+    split->threshold = tree->split->loc;
+    return split;
+}
+
+void freeArray(void * ptr) {
+    free(ptr);
 }

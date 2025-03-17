@@ -35,6 +35,9 @@ class Forest:
         self.champ_max_x = None
         self.importances = None
     
+    def __getitem__(self, key) -> dtree.Tree:
+        return self.trees[key]
+    
     def _update_stats(self, reset_importances=True):
         self.min_bound = sum([tree.min for tree in self.trees]) * self._factor
         self.max_bound = sum([tree.max for tree in self.trees]) * self._factor
@@ -57,30 +60,50 @@ class Forest:
         forest.champ_max_x = self.champ_max_x
         return forest
     
+    def avg_size(self):
+        return sum([tree.size for tree in self.trees]) / self.n_trees
+    
+    def avg_depth(self):
+        return sum([tree.depth for tree in self.trees]) / self.n_trees
+    
     def print_summary(self):
         print(f"Size of forest: {self.n_trees}")
-        avg_size = sum([tree.size for tree in self.trees]) / self.n_trees
-        print(f"Average Tree Size: {avg_size}")
-        avg_depth = sum([tree.depth for tree in self.trees]) / self.n_trees
-        print(f"Avg Max Depth: {avg_depth}")
+        print(f"Average Tree Size: {self.avg_size()}")
+        print(f"Avg Max Depth: {self.avg_depth()}")
         print(f"Minimum: [{self.min_bound}, {self.champ_min}]")
         print(f"Maximum: [{self.champ_max}, {self.max_bound}]")
     
     def eval(self, x: Iterable[float]) -> float:
-        sum = 0.0
+        c_arr, n = dtree.Tree._get_c_arr(x)
 
-        c_arr = dtree.Tree._get_c_arr(x)
+        if n == 1:
+            sum = 0.0
+        else:
+            sum = np.zeros(n)
         
         for tree in self.trees:
-            sum += tree._eval(c_arr)
+            if n == 1:
+                sum += tree._eval(c_arr)
+            else:
+                sum += tree._eval_matrix(c_arr, n)
         sum *= self._factor
 
-        if self.champ_max is None or sum > self.champ_max:
-            self.champ_max = sum
-            self.champ_max_x = x
-        if self.champ_min is None or sum < self.champ_min:
-            self.champ_min = sum
-            self.champ_min_x = x
+        if n == 1:
+            if self.champ_max is None or sum > self.champ_max:
+                self.champ_max = sum
+                self.champ_max_x = x
+            if self.champ_min is None or sum < self.champ_min:
+                self.champ_min = sum
+                self.champ_min_x = x
+        else:
+            max_index = np.argmax(sum)
+            min_index = np.argmin(sum)
+            if self.champ_max is None or sum[max_index] > self.champ_max:
+                self.champ_max = sum[max_index]
+                self.champ_max_x = x[max_index]
+            if self.champ_min is None or sum[min_index] < self.champ_min:
+                self.champ_min = sum[min_index]
+                self.champ_min_x = x[min_index]
         return sum
     
     def sample(self, low: Iterable[float], high: Iterable[float], n: int):
@@ -88,8 +111,7 @@ class Forest:
         assert len(low) == self.dim
         assert len(high) == self.dim
         X = np.random.uniform(low, high, (n, self.dim))
-        for x in X:
-            self.eval(x)
+        self.eval(X)
     
     def prune_left(self, axis: int, threshold: float) -> 'Forest':
         for tree in self.trees:
