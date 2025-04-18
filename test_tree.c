@@ -215,6 +215,55 @@ int main(void) {
     assert(treeEval(merge, mx9) == 6);
     assert(treeEval(merge, mx10) == 8);
 
+    /* Test findMin, findMax. */
+    double minBounds[2] = {0.0, 0.0};
+    double maxBounds[2] = {1.0, 1.0};
+
+    findMin(merge, minBounds, maxBounds);
+
+    assert(minBounds[0] == 0.0);
+    assert(minBounds[1] == 0.0);
+    assert(maxBounds[0] == 0.25);
+    assert(maxBounds[1] == 0.25);
+
+    maxBounds[0] = 1.0;
+    maxBounds[1] = 1.0;
+
+    findMax(merge, minBounds, maxBounds);
+
+    assert(minBounds[0] == 0.75);
+    assert(minBounds[1] == 0.75);
+    assert(maxBounds[0] == 1.0);
+    assert(maxBounds[1] == 1.0);
+
+    freeTree(merge);
+
+    /* Test mergeMax and mergeMin. */
+    Tree_T mergeMax, mergeMin;
+
+    assert(treeMergeMax(&mergeMax, tree1, tree2, 6));
+    assert(treeSize(mergeMax) == 6);
+    assert(treeDepth(mergeMax) == 4);
+    assert(treeMin(mergeMax) == 5.0);
+    assert(treeMax(mergeMax) == 8.0);
+    assert(treeEval(mergeMax, mx6) == 6);
+    assert(treeEval(mergeMax, mx8) == 7);
+    assert(treeEval(mergeMax, mx9) == 6);
+    assert(treeEval(mergeMax, mx10) == 8);
+    
+    assert (treeMergeMin(&mergeMin, tree1, tree2, 4));
+    assert(treeSize(mergeMin) == 6);
+    assert(treeDepth(mergeMin) == 4);
+    assert(treeMin(mergeMin) == 2.0);
+    assert(treeMax(mergeMin) == 5.0);
+    assert(treeEval(mergeMin, mx1) == 2);
+    assert(treeEval(mergeMin, mx2) == 4);
+    assert(treeEval(mergeMin, mx3) == 3);
+    assert(treeEval(mergeMin, mx5) == 4);
+    
+    freeTrees(2, tree1, tree2);
+    freeTrees(2, mergeMin, mergeMax);
+
     printf("test_tree: Tests passed!\n");
 
     return 0;

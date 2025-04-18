@@ -49,10 +49,11 @@ def handle_args():
     Handle and return arguments using ArgumentParser.
     """
     parser = ArgumentParser(prog=sys.argv[0],
-                            description="Build CFFI.",
+                            description="Build C code with CFFI.",
                             allow_abbrev=False)
-    parser.add_argument("-d", "--debug", action="store_true",
-                        help="the host on which the server is running")
+    parser.add_argument("-d", "--debug", action="store_true", 
+                        help="compile C code with assertions (compiles "\
+                        "without by default)")
     args = vars(parser.parse_args())
     return args["debug"]
 

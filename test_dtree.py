@@ -137,6 +137,100 @@ def test_merge():
     tree2.free()
     merge.free()
 
+def test_merge_max():
+    split_1a = make_split(2, 1, 0.25, make_leaf(2, 1), make_leaf(2, 2))
+    split_1b = make_split(2, 1, 0.75, make_leaf(2, 3), make_leaf(2, 4))
+    tree1 = make_split(2, 0, 0.5, split_1a, split_1b)
+
+    split_2a = make_split(2, 0, 0.25, make_leaf(2, 1), make_leaf(2, 3))
+    split_2b = make_split(2, 0, 0.75, make_leaf(2, 2), make_leaf(2, 4))
+    tree2 = make_split(2, 1, 0.5, split_2a, split_2b)
+
+    merge = merge_trees_max(tree1, tree2, 6)
+
+    assert merge.depth == 4
+    assert merge.size == 6
+    assert merge.min == 5.0
+    assert merge.max == 8.0
+
+    assert merge.eval([0.7, 0.2]) == 6.0
+    assert merge.eval([0.6, 0.8]) == 6.0
+    assert merge.eval([0.8, 0.6]) == 7.0
+    assert merge.eval([0.8, 0.8]) == 8.0
+
+    merge.free()
+    merge = merge_trees_max(tree2, tree1, 6)
+
+    assert merge.depth == 3
+    assert merge.size == 5
+    assert merge.min == 4.0
+    assert merge.max == 8.0
+
+    assert merge.eval([0.7, 0.2]) == 6.0
+    assert merge.eval([0.6, 0.8]) == 6.0
+    assert merge.eval([0.8, 0.6]) == 7.0
+    assert merge.eval([0.8, 0.8]) == 8.0
+
+    tree1.free()
+    tree2.free()
+    merge.free()
+
+def test_merge_max2():
+    split_1a = make_split(2, 1, 0.25, make_leaf(2, 1), make_leaf(2, 2))
+    split_1b = make_split(2, 1, 0.75, make_leaf(2, 3), make_leaf(2, 4))
+    tree1 = make_split(2, 0, 0.5, split_1a, split_1b)
+    tree2 = make_leaf(2, 0.1)
+
+    merge1 = merge_trees_max(tree1, tree2, 3.1)
+    assert merge1.depth == 2
+    assert merge1.size == 4
+    assert merge1.max == 4.1
+    assert merge1.min == 1.1
+
+    merge2 = merge_trees_max(tree2, tree1, 3.1)
+    assert merge2.depth == 2
+    assert merge2.size == 4
+    assert merge2.max == 4.1
+    assert merge2.min == 1.1
+
+def test_merge_min():
+    split_1a = make_split(2, 1, 0.25, make_leaf(2, 1), make_leaf(2, 2))
+    split_1b = make_split(2, 1, 0.75, make_leaf(2, 3), make_leaf(2, 4))
+    tree1 = make_split(2, 0, 0.5, split_1a, split_1b)
+
+    split_2a = make_split(2, 0, 0.25, make_leaf(2, 1), make_leaf(2, 3))
+    split_2b = make_split(2, 0, 0.75, make_leaf(2, 2), make_leaf(2, 4))
+    tree2 = make_split(2, 1, 0.5, split_2a, split_2b)
+
+    merge = merge_trees_min(tree1, tree2, 4)
+
+    assert merge.depth == 4
+    assert merge.size == 6
+    assert merge.min == 2.0
+    assert merge.max == 5.0
+
+    assert merge.eval([0.1, 0.1]) == 2.0
+    assert merge.eval([0.3, 0.1]) == 4.0
+    assert merge.eval([0.1, 0.3]) == 3.0
+    assert merge.eval([0.2, 0.7]) == 4.0
+
+    merge.free()
+    merge = merge_trees_min(tree2, tree1, 4)
+
+    assert merge.depth == 3
+    assert merge.size == 5
+    assert merge.min == 2.0
+    assert merge.max == 6.0
+
+    assert merge.eval([0.1, 0.1]) == 2.0
+    assert merge.eval([0.3, 0.1]) == 4.0
+    assert merge.eval([0.1, 0.3]) == 3.0
+    assert merge.eval([0.2, 0.7]) == 4.0
+
+    tree1.free()
+    tree2.free()
+    merge.free()
+
 def test_merge_self():
     """
     Check that a tree merged with itself has the same shape.
