@@ -658,6 +658,7 @@ bool treeMergeAux(Tree_T * result, const Tree_T tree1,
             freeTrees(3, mergeL, mergeC, right2);
             return false;
         }
+        freeTree(right2);
 
         /* Connect 3 subtrees. Balance based on size. */
         if (treeSize(mergeL) > treeSize(mergeR)) {
