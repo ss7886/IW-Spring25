@@ -1,4 +1,0 @@
-cffi
-notebook
-pytest
-snakeviz
