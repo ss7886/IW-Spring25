@@ -145,13 +145,16 @@ def pso_min(forest: Forest, min_bound: Vector, max_bound: Vector,
 
 def max_query(forest: Forest, min_bound: Vector,
               max_bound: Vector, threshold: float,
-              pso_N: int = 20_000, pso_max_iters: int = 20,
+              pso_N: int = 10_000, pso_max_iters: int = 10,
               merge_limit: Optional[int] = None,
-              branch_and_bound: bool = True,
-              offset: float = 0.0, verbose: bool = False) -> Optional[bool]:
+              branch_and_bound: bool = True, offset: float = 0.0,
+              prune: bool = True, verbose: bool = False) -> Optional[bool]:
     if merge_limit is None:
         merge_limit = forest.n_trees / 4
-    forest = forest.copy().prune_box(min_bound, max_bound)
+    
+    forest = forest.copy()
+    if prune:
+        forest.prune_box(min_bound, max_bound)
 
     # Check if query has been (dis)proven, returns None otherwise
     def check_query():
@@ -213,13 +216,16 @@ def max_query(forest: Forest, min_bound: Vector,
 
 def min_query(forest: Forest, min_bound: Vector,
               max_bound: Vector, threshold: float,
-              pso_N: int = 20_000, pso_max_iters: int = 20,
+              pso_N: int = 10_000, pso_max_iters: int = 10,
               merge_limit: Optional[int] = None,
-              branch_and_bound: bool = True,
-              offset: float = 0.0, verbose: bool = False) -> Optional[bool]:
+              branch_and_bound: bool = True, offset: float = 0.0,
+              prune: bool = True, verbose: bool = False) -> Optional[bool]:
     if merge_limit is None:
         merge_limit = forest.n_trees / 4
-    forest = forest.copy().prune_box(min_bound, max_bound)
+    
+    forest = forest.copy()
+    if prune:
+        forest.prune_box(min_bound, max_bound)
 
     # Check if query has been (dis)proven, returns None otherwise
     def check_query():
@@ -281,17 +287,22 @@ def min_query(forest: Forest, min_bound: Vector,
 def query(forest: Forest, min_bound: Vector, max_bound: Vector,
           min_threshold: float, max_threshold: float,
           offset_factor: float = 0.15, **kwargs) -> Optional[bool]:
+    forest = forest.copy()
+    forest.prune_box(min_bound, max_bound)
+
     offset = offset_factor * (max_threshold - min_threshold)
     min_result = min_query(forest, min_bound, max_bound, min_threshold,
-                           offset=offset, **kwargs)
+                           offset=offset, prune=False, **kwargs)
     
     if min_result == False:
+        forest.free()
         return False
     
     offset *= -1
     max_result = max_query(forest, min_bound, max_bound, max_threshold,
-                           offset=offset, **kwargs)
+                           offset=offset, prune=False, **kwargs)
     
+    forest.free()
     if min_result and max_result:
         return True
     if max_result == False:

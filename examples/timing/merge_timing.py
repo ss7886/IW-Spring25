@@ -1,12 +1,10 @@
-import sys
-
 import numpy as np
 from sklearn.ensemble import RandomForestRegressor
 
 import dforest
 
 missing_data = lambda x : 100. if x == '?' else float(x)
-data = np.loadtxt("../datasets/Auto.data", converters=missing_data, 
+data = np.loadtxt("./datasets/Auto.data", converters=missing_data, 
                     skiprows=1, usecols=[0, 1, 2, 3, 4, 5, 6, 7])
 
 np.random.seed(12345)
