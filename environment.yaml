@@ -1,0 +1,6 @@
+channels:
+  - defaults
+dependencies:
+  - numpy
+  - matplotlib
+  - scikit-learn
