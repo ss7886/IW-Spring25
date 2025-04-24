@@ -17,8 +17,10 @@ class Forest:
     champ_max_x: Iterable[float]
     importances: list[np.typing.NDArray]
     _factor: float
+    _offset: float
 
-    def __init__(self, trees: list[dtree.Tree], factor: float = None):
+    def __init__(self, trees: list[dtree.Tree], factor: float = None,
+                 offset: float = 0):
         assert len(trees) >= 1
         self.trees = trees
         self.n_trees = len(trees)
@@ -27,8 +29,11 @@ class Forest:
             assert tree.dim == self.dim
 
         self._factor = 1 / self.n_trees if factor is None else factor
-        self.min_bound = sum([tree.min for tree in trees]) * self._factor
-        self.max_bound = sum([tree.max for tree in trees]) * self._factor
+        self._offset = offset
+        self.min_bound = sum([tree.min for tree in self.trees]) * self._factor
+        self.min_bound += self._offset
+        self.max_bound = sum([tree.max for tree in self.trees]) * self._factor 
+        self.max_bound += self._offset
         self.champ_min = None
         self.champ_min_x = None
         self.champ_max = None
@@ -40,7 +45,9 @@ class Forest:
     
     def _update_stats(self, reset_importances=True):
         self.min_bound = sum([tree.min for tree in self.trees]) * self._factor
-        self.max_bound = sum([tree.max for tree in self.trees]) * self._factor
+        self.min_bound += self._offset
+        self.max_bound = sum([tree.max for tree in self.trees]) * self._factor 
+        self.max_bound += self._offset
         if reset_importances:
             self.importances = None
     
@@ -53,7 +60,7 @@ class Forest:
         for tree in self.trees:
             trees.append(tree.copy())
 
-        forest = Forest(trees, self._factor)
+        forest = Forest(trees, self._factor, self._offset)
         forest.champ_min = self.champ_min
         forest.champ_min_x = self.champ_min_x
         forest.champ_max = self.champ_max
@@ -80,13 +87,15 @@ class Forest:
             sum = 0.0
         else:
             sum = np.zeros(n)
-        
+
         for tree in self.trees:
             if n == 1:
                 sum += tree._eval(c_arr)
             else:
                 sum += tree._eval_matrix(c_arr, n)
+
         sum *= self._factor
+        sum += self._offset
 
         if n == 1:
             if self.champ_max is None or sum > self.champ_max:
@@ -182,11 +191,20 @@ class Forest:
         self._update_stats(False)
         return self
 
-def make_forest_sklearn(forest: sklearn.ensemble, **kwargs) -> Forest:
+def make_forest_sklearn(forest: sklearn.ensemble, gb: bool = False,
+                        **kwargs) -> Forest:
     trees = []
     for tree in forest.estimators_:
+        if isinstance(tree, np.ndarray):
+            tree = tree[0]
         trees.append(dtree.make_tree_sklearn(tree, **kwargs))
-    return Forest(trees)
+    if gb:
+        factor = forest.learning_rate
+        offset = forest.init_.constant_[0, 0]
+    else:
+        factor = None
+        offset = 0
+    return Forest(trees, factor=factor, offset=offset)
 
 if __name__ == "__main__":
     forest = Forest([dtree.make_leaf(3, 1)])
