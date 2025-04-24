@@ -22,8 +22,6 @@ class treeCFFIError(Exception):
 class Tree:
     _tree: TreePtr
     dim: int
-    left: 'Tree'
-    right: 'Tree'
     min: float
     max: float
     depth: int
@@ -76,7 +74,6 @@ class Tree:
         arr = np.frombuffer(buffer, dtype=np.float64).copy()
         lib.freeArray(res)
 
-        # Make sure C Array gets freed after NumPy array is garbage collected
         return arr
     
     @staticmethod
@@ -90,7 +87,7 @@ class Tree:
             c_arr = ffi.new("double[]", list(x))
             finalize(c_arr, ffi.release, c_arr)
         return c_arr, n
-        
+      
     def eval(self, x: Iterable[float]) -> float | np.typing.NDArray:
         assert self._check_tree()
         c_arr, n = Tree._get_c_arr(x)
