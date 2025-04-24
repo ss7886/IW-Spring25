@@ -1,6 +1,6 @@
 TESTS = test_symtable test_tree # test_tree_dag
 TIMING_DIR = examples/timing/
-TIMETESTS = merge_timing.py sample_timing.py pso_timing.py
+TIMETESTS = merge_timing.py sample_timing.py pso_timing.py smt_query_timing.py query_timing.py
 CFFI = _tree_cffi.*
 CFFI_BUILD = cffi_build.py
 INTERMEDIATE = symtable_hash.o tree.o tree_dag.o test_symtable.o test_tree.o
