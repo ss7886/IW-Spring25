@@ -4,6 +4,7 @@ from weakref import finalize
 from _tree_cffi import ffi, lib
 
 import numpy as np
+from numpy.typing import NDArray
 from sklearn.tree import DecisionTreeRegressor
 
 if TYPE_CHECKING:
@@ -66,7 +67,7 @@ class Tree:
     def _eval(self, c_arr: ArrayPtr) -> float:
         return lib.treeEval(self._tree, c_arr)
     
-    def _eval_matrix(self, c_arr: ArrayPtr, n: int) -> np.typing.NDArray:
+    def _eval_matrix(self, c_arr: ArrayPtr, n: int) -> NDArray:
         res = lib.treeEvalMatrix(self._tree, c_arr, n)
         if res == ffi.NULL:
             raise treeCFFIError("treeEvalMatrix failed.")
@@ -87,8 +88,8 @@ class Tree:
             c_arr = ffi.new("double[]", list(x))
             finalize(c_arr, ffi.release, c_arr)
         return c_arr, n
-      
-    def eval(self, x: Iterable[float]) -> float | np.typing.NDArray:
+        
+    def eval(self, x: Iterable[float]) -> float | NDArray:
         assert self._check_tree()
         c_arr, n = Tree._get_c_arr(x)
         if n == 1:
@@ -130,7 +131,7 @@ class Tree:
             self.prune_left(i, x)
         return self
 
-    def feature_importance(self) -> np.typing.NDArray:
+    def feature_importance(self) -> NDArray:
         assert self._check_tree()
 
         importances = lib.featureImportance(self._tree)
@@ -144,15 +145,37 @@ class Tree:
 
         return arr
     
-    def getTopSplit(self) -> Tuple[int, float]:
+    def find_min(self, min_bounds: NDArray = None,
+                 max_bounds: NDArray = None) -> Tuple[NDArray, NDArray]:
         assert self._check_tree()
-        assert self.depth > 0
 
-        splitPtr = lib.getTopSplit(self._tree)
-        if splitPtr == ffi.NULL:
-            raise treeCFFIError("getSplitPointer failed.")
+        if min_bounds is None:
+            min_bounds = np.ones(self.dim) * -np.inf
+        if max_bounds is None:
+            max_bounds = np.ones(self.dim) * np.inf
         
-        return splitPtr[0].axis, splitPtr[0].threshold
+        min_buffer = ffi.from_buffer("double[]", min_bounds)
+        max_buffer = ffi.from_buffer("double[]", max_bounds)
+        
+        lib.findMin(self._tree, min_buffer, max_buffer)
+
+        return min_bounds, max_bounds
+    
+    def find_max(self, min_bounds: NDArray = None,
+                 max_bounds: NDArray = None) -> Tuple[NDArray, NDArray]:
+        assert self._check_tree()
+
+        if min_bounds is None:
+            min_bounds = np.ones(self.dim) * -np.inf
+        if max_bounds is None:
+            max_bounds = np.ones(self.dim) * np.inf
+        
+        min_buffer = ffi.from_buffer("double[]", min_bounds)
+        max_buffer = ffi.from_buffer("double[]", max_bounds)
+        
+        lib.findMax(self._tree, min_buffer, max_buffer)
+
+        return min_bounds, max_bounds
 
 def _make_leaf_ptr(dim: int, value: float) -> TreePtr:
     pointer = ffi.new("Tree_T *")
@@ -208,6 +231,24 @@ def merge_trees(tree1: Tree, tree2: Tree) -> Tree:
         raise treeCFFIError("treeMerge failed.")
     return Tree(res_ptr[0])
 
+def merge_trees_max(tree1: Tree, tree2: Tree, val: float) -> Tree:
+    assert tree1._check_tree()
+    assert tree2._check_tree()
+
+    res_ptr = ffi.new("Tree_T *")
+    if not lib.treeMergeMax(res_ptr, tree1._tree, tree2._tree, val):
+        raise treeCFFIError("treeMergeMax failed.")
+    return Tree(res_ptr[0])
+
+def merge_trees_min(tree1: Tree, tree2: Tree, val: float) -> Tree:
+    assert tree1._check_tree()
+    assert tree2._check_tree()
+
+    res_ptr = ffi.new("Tree_T *")
+    if not lib.treeMergeMin(res_ptr, tree1._tree, tree2._tree, val):
+        raise treeCFFIError("treeMergeMin failed.")
+    return Tree(res_ptr[0])
+
 if __name__ == "__main__":
     split_1a = make_split(3, 1, 0.25, make_leaf(2, 1), make_leaf(2, 2))
     split_1b = make_split(2, 1, 0.75, make_leaf(2, 3), make_leaf(2, 4))
@@ -223,6 +264,7 @@ if __name__ == "__main__":
     assert merge.size == 10
     assert merge.min == 2.0
     assert merge.max == 8.0
+    print("Trees pass")
 
     tree1.free()
     tree2.free()

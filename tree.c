@@ -504,7 +504,9 @@ bool treeAddConst(Tree_T * result, const Tree_T tree, double c) {
     return true;
 }
 
-bool treeMergeSafe(Tree_T * result, const Tree_T tree1, const Tree_T tree2) {
+bool treeMergeAux(Tree_T * result, const Tree_T tree1,
+                  const Tree_T tree2, double extraVal,
+                  bool (*func)(Tree_T *, const Tree_T, const Tree_T, double)) {
     *result = NULL;
     uint32_t dim = treeDim(tree1);
 
@@ -525,7 +527,7 @@ bool treeMergeSafe(Tree_T * result, const Tree_T tree1, const Tree_T tree2) {
         if (!treePruneLeftSafe(&pruneL, tree2, split1->axis, split1->loc)) {
             return false;
         }
-        if (!treeMergeSafe(&mergeL, split1->left, pruneL)) {
+        if (!func(&mergeL, split1->left, pruneL, extraVal)) {
             freeTree(pruneL);
             return false;
         }
@@ -535,7 +537,7 @@ bool treeMergeSafe(Tree_T * result, const Tree_T tree1, const Tree_T tree2) {
             freeTree(mergeL);
             return false;
         }
-        if (!treeMergeSafe(&mergeR, split1->right, pruneR)) {
+        if (!func(&mergeR, split1->right, pruneR, extraVal)) {
             freeTrees(2, mergeL, pruneR);
             return false;
         }
@@ -560,7 +562,7 @@ bool treeMergeSafe(Tree_T * result, const Tree_T tree1, const Tree_T tree2) {
         if (!treePruneLeft(&left2, split2->left, axis, split1->loc)) {
             return false;
         }
-        if (!treeMergeSafe(&mergeL, split1->left, left2)) {
+        if (!func(&mergeL, split1->left, left2, extraVal)) {
             freeTree(left2);
             return false;
         }
@@ -575,7 +577,7 @@ bool treeMergeSafe(Tree_T * result, const Tree_T tree1, const Tree_T tree2) {
             freeTrees(2, mergeL, center1);
             return false;
         }
-        if (!treeMergeSafe(&mergeC, center1, center2)) {
+        if (!func(&mergeC, center1, center2, extraVal)) {
             freeTrees(3, mergeL, center1, center2);
             return false;
         }
@@ -586,7 +588,7 @@ bool treeMergeSafe(Tree_T * result, const Tree_T tree1, const Tree_T tree2) {
             freeTrees(2, mergeL, mergeC);
             return false;
         }
-        if (!treeMergeSafe(&mergeR, right1, split2->right)) {
+        if (!func(&mergeR, right1, split2->right, extraVal)) {
             freeTrees(3, mergeL, mergeC, right1);
             return false;
         }
@@ -626,7 +628,7 @@ bool treeMergeSafe(Tree_T * result, const Tree_T tree1, const Tree_T tree2) {
         if (!treePruneLeft(&left1, split1->left, axis, split2->loc)) {
             return false;
         }
-        if (!treeMergeSafe(&mergeL, left1, split2->left)) {
+        if (!func(&mergeL, left1, split2->left, extraVal)) {
             freeTree(left1);
             return false;
         }
@@ -641,7 +643,7 @@ bool treeMergeSafe(Tree_T * result, const Tree_T tree1, const Tree_T tree2) {
             freeTrees(2, mergeL, center1);
             return false;
         }
-        if (!treeMergeSafe(&mergeC, center1, center2)) {
+        if (!func(&mergeC, center1, center2, extraVal)) {
             freeTrees(3, mergeL, center1, center2);
             return false;
         }
@@ -652,10 +654,11 @@ bool treeMergeSafe(Tree_T * result, const Tree_T tree1, const Tree_T tree2) {
             freeTrees(2, mergeL, mergeC);
             return false;
         }
-        if (!treeMergeSafe(&mergeR, split1->right, right2)) {
+        if (!func(&mergeR, split1->right, right2, extraVal)) {
             freeTrees(3, mergeL, mergeC, right2);
             return false;
         }
+        freeTree(right2);
 
         /* Connect 3 subtrees. Balance based on size. */
         if (treeSize(mergeL) > treeSize(mergeR)) {
@@ -682,10 +685,10 @@ bool treeMergeSafe(Tree_T * result, const Tree_T tree1, const Tree_T tree2) {
     } else {
         /* Merge left subtrees together znd right subtrees together.*/
         Tree_T left, right;
-        if (!treeMergeSafe(&left, split1->left, split2->left)) {
+        if (!func(&left, split1->left, split2->left, extraVal)) {
             return false;
         }
-        if (!treeMergeSafe(&right, split1->right, split2->right)) {
+        if (!func(&right, split1->right, split2->right, extraVal)) {
             freeTree(left);
             return false;
         }
@@ -697,6 +700,11 @@ bool treeMergeSafe(Tree_T * result, const Tree_T tree1, const Tree_T tree2) {
     return true;
 }
 
+bool treeMergeSafe(Tree_T * result, const Tree_T tree1, const Tree_T tree2,
+                   double blank) {
+    return treeMergeAux(result, tree1, tree2, blank, treeMergeSafe);
+}
+
 bool treeMerge(Tree_T * result, const Tree_T tree1, const Tree_T tree2) {
     /* Only validate arguments once. */
     assert(result != NULL);
@@ -704,9 +712,98 @@ bool treeMerge(Tree_T * result, const Tree_T tree1, const Tree_T tree2) {
     assert(validTree(tree2));
     assert(treeDim(tree1) == treeDim(tree2));
 
-    return treeMergeSafe(result, tree1, tree2);
+    return treeMergeSafe(result, tree1, tree2, 0);
 }
 
+bool treeMergeMaxSafe(Tree_T * result, const Tree_T tree1, const Tree_T tree2,
+                      double max) {
+    double sum = treeMax(tree1) + treeMax(tree2);
+    if (sum <= max) {
+        return makeLeaf(result, treeDim(tree1), sum);
+    }
+    return treeMergeAux(result, tree1, tree2, max, treeMergeMaxSafe);
+}
+
+bool treeMergeMax(Tree_T * result, const Tree_T tree1, const Tree_T tree2,
+                  double max) {
+    /* Only validate arguments once. */
+    assert(result != NULL);
+    assert(validTree(tree1));
+    assert(validTree(tree2));
+    assert(treeDim(tree1) == treeDim(tree2));
+
+    return treeMergeMaxSafe(result, tree1, tree2, max);
+}
+
+bool treeMergeMinSafe(Tree_T * result, const Tree_T tree1, const Tree_T tree2,
+                      double min) {
+    double sum = treeMin(tree1) + treeMin(tree2);
+    if (sum >= min) {
+        return makeLeaf(result, treeDim(tree1), sum);
+    }
+    return treeMergeAux(result, tree1, tree2, min, treeMergeMinSafe);
+}
+
+bool treeMergeMin(Tree_T * result, const Tree_T tree1, const Tree_T tree2,
+                  double min) {
+    /* Only validate arguments once. */
+    assert(result != NULL);
+    assert(validTree(tree1));
+    assert(validTree(tree2));
+    assert(treeDim(tree1) == treeDim(tree2));
+
+    return treeMergeMinSafe(result, tree1, tree2, min);
+}
+
+void findMinSafe(const Tree_T tree, double * minBounds, double * maxBounds) {
+    if (tree->isLeaf) {
+        return;
+    }
+
+    Split_T split = tree->split;
+    uint32_t axis = split->axis;
+    double loc = split->loc;
+    if (treeMin(split->left) <= treeMin(split->right)) {
+        maxBounds[axis] = loc;
+        findMinSafe(split->left, minBounds, maxBounds);
+    } else {
+        minBounds[axis] = loc;
+        findMinSafe(split->right, minBounds, maxBounds);
+    }
+}
+
+void findMin(const Tree_T tree, double * minBounds, double * maxBounds) {
+    assert(validTree(tree));
+    assert(minBounds != NULL);
+    assert(maxBounds != NULL);
+
+    findMinSafe(tree, minBounds, maxBounds);
+}
+
+void findMaxSafe(const Tree_T tree, double * minBounds, double * maxBounds) {
+    if (tree->isLeaf) {
+        return;
+    }
+
+    Split_T split = tree->split;
+    uint32_t axis = split->axis;
+    double loc = split->loc;
+    if (treeMax(split->left) >= treeMax(split->right)) {
+        maxBounds[axis] = loc;
+        findMaxSafe(split->left, minBounds, maxBounds);
+    } else {
+        minBounds[axis] = loc;
+        findMaxSafe(split->right, minBounds, maxBounds);
+    }
+}
+
+void findMax(const Tree_T tree, double * minBounds, double * maxBounds) {
+    assert(validTree(tree));
+    assert(minBounds != NULL);
+    assert(maxBounds != NULL);
+
+    findMaxSafe(tree, minBounds, maxBounds);
+}
 
 /*
 Since Gini-impurity can't be calculated without access to training data,
@@ -734,6 +831,15 @@ double * featureImportance(const Tree_T tree) {
         return NULL;
     }
 
+    if (tree->isLeaf) {
+        /* Set all importances to 1/treeDim. */
+        double val = 1.0 / treeDim(tree);
+        for (uint32_t i = 0; i < treeDim(tree); i++) {
+            importances[i] = val;
+        }
+        return importances;
+    }
+
     /* Sum importances. */
     featureImportanceSafe(importances, tree, 0);
 
@@ -746,24 +852,6 @@ double * featureImportance(const Tree_T tree) {
         importances[i] /= sum;
     }
     return importances;
-}
-
-struct splitPoint * getTopSplit(Tree_T tree) {
-    assert(validTree(tree));
-
-    if (tree->isLeaf) {
-        return NULL;
-    }
-
-    struct splitPoint * split;
-    split = malloc(sizeof(struct splitPoint));
-    if (split == NULL) {
-        return NULL;
-    }
-
-    split->axis = tree->split->axis;
-    split->threshold = tree->split->loc;
-    return split;
 }
 
 void freeArray(void * ptr) {

@@ -1,0 +1,13 @@
+channels:
+  - defaults
+dependencies:
+  - python=3.12
+  - numpy
+  - matplotlib
+  - scikit-learn
+  - pip
+  - pip:
+    - cffi
+    - notebook
+    - pytest
+    - snakeviz

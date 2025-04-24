@@ -1,4 +1,4 @@
-from typing import Iterable, Optional, Tuple, TYPE_CHECKING
+from typing import Iterable, Optional, Tuple, Union, TYPE_CHECKING
 
 from dforest import Forest
 
@@ -6,7 +6,7 @@ import numpy as np
 from numpy.typing import NDArray
 
 if TYPE_CHECKING:
-    Vector = Iterable[float]
+    Vector = Union[Iterable[float], NDArray]
 else:
     Vector = object
 
@@ -49,8 +49,8 @@ def auto_prune_max(forest: Forest, min_bound: Vector, max_bound: Vector,
 
 def pso_max(forest: Forest, min_bound: Vector, max_bound: Vector,
             N: int = 10_000, forest_copy: bool = True, max_iters: int = 20,
-            inertia: float = 0.8, part_inf: float = 1,
-            swarm_inf: float = 1) -> tuple[NDArray, float]:
+            inertia: float = 0.8, part_inf: float = 1, swarm_inf: float = 1,
+            stop: Optional[float] = None) -> tuple[NDArray, float]:
     assert len(min_bound) == forest.dim
     assert len(max_bound) == forest.dim
     assert max_iters > 0
@@ -71,11 +71,14 @@ def pso_max(forest: Forest, min_bound: Vector, max_bound: Vector,
         y = forest.eval(swarm)
         for i, particle in enumerate(swarm):
             if y[i] > particle_best_y[i]:
-                particle_best[i] = particle
+                particle_best[i] = particle.copy()
                 particle_best_y[i] = y[i]
             if y[i] > swarm_best_y:
-                swarm_best = particle
+                swarm_best = particle.copy()
                 swarm_best_y = y[i]
+        
+        if stop is not None and swarm_best_y > stop:
+            break
         
         # Calculate velocity
         velocity *= inertia
@@ -94,8 +97,8 @@ def pso_max(forest: Forest, min_bound: Vector, max_bound: Vector,
 
 def pso_min(forest: Forest, min_bound: Vector, max_bound: Vector,
             N: int = 10_000, forest_copy: bool = True, max_iters: int = 20,
-            inertia: float = 0.8, part_inf: float = 1,
-            swarm_inf: float = 1) -> tuple[NDArray, float]:
+            inertia: float = 0.8, part_inf: float = 1, swarm_inf: float = 1,
+            stop: Optional[float] = None) -> tuple[NDArray, float]:
     assert len(min_bound) == forest.dim
     assert len(max_bound) == forest.dim
     assert max_iters > 0
@@ -116,11 +119,14 @@ def pso_min(forest: Forest, min_bound: Vector, max_bound: Vector,
         y = forest.eval(swarm)
         for i, particle in enumerate(swarm):
             if y[i] < particle_best_y[i]:
-                particle_best[i] = particle
+                particle_best[i] = particle.copy()
                 particle_best_y[i] = y[i]
             if y[i] < swarm_best_y:
-                swarm_best = particle
+                swarm_best = particle.copy()
                 swarm_best_y = y[i]
+        
+        if stop is not None and swarm_best_y < stop:
+            break
         
         # Calculate velocity
         velocity *= inertia
@@ -139,12 +145,16 @@ def pso_min(forest: Forest, min_bound: Vector, max_bound: Vector,
 
 def max_query(forest: Forest, min_bound: Vector,
               max_bound: Vector, threshold: float,
-              pso_N: int = 20_000, pso_max_iters: int = 20,
+              pso_N: int = 10_000, pso_max_iters: int = 10,
               merge_limit: Optional[int] = None,
-              verbose: bool = False) -> Optional[bool]:
+              branch_and_bound: bool = True, offset: float = 0.0,
+              prune: bool = True, verbose: bool = False) -> Optional[bool]:
     if merge_limit is None:
         merge_limit = forest.n_trees / 4
-    forest = forest.copy().prune_box(min_bound, max_bound)
+    
+    forest = forest.copy()
+    if prune:
+        forest.prune_box(min_bound, max_bound)
 
     # Check if query has been (dis)proven, returns None otherwise
     def check_query():
@@ -178,29 +188,44 @@ def max_query(forest: Forest, min_bound: Vector,
         return exit_query()
     
     # Run pso (to find counter examples, raise lower bound)
-    pso_max(forest, min_bound, max_bound, N=pso_N, forest_copy=False,
-            max_iters=pso_max_iters)
+    best_x, _ = pso_max(forest, min_bound, max_bound, N=pso_N, 
+                        forest_copy=False, max_iters=pso_max_iters,
+                        stop=threshold)
 
     if check_query() is not None:
         return exit_query()
     
     # Merge trees (to decrease upper bound)
     while forest.n_trees > merge_limit:
-        forest.merge(forest.n_trees - 1)
+        if branch_and_bound:
+            forest.merge_max(forest.n_trees - 1, best_x, offset=offset)
+        else:
+            forest.merge(forest.n_trees - 1)
 
         if check_query() is not None:
             return exit_query()
+    
+    # Try to find max
+    for tree in forest:
+        opt_min_bound, opt_max_bound = tree.find_max(min_bound.copy(),
+                                                     max_bound.copy())
+        opt_x = (opt_min_bound + opt_max_bound) / 2
+        forest.eval(opt_x)
 
     return exit_query()
 
 def min_query(forest: Forest, min_bound: Vector,
               max_bound: Vector, threshold: float,
-              pso_N: int = 20_000, pso_max_iters: int = 20,
+              pso_N: int = 10_000, pso_max_iters: int = 10,
               merge_limit: Optional[int] = None,
-              verbose: bool = False) -> Optional[bool]:
+              branch_and_bound: bool = True, offset: float = 0.0,
+              prune: bool = True, verbose: bool = False) -> Optional[bool]:
     if merge_limit is None:
         merge_limit = forest.n_trees / 4
-    forest = forest.copy().prune_box(min_bound, max_bound)
+    
+    forest = forest.copy()
+    if prune:
+        forest.prune_box(min_bound, max_bound)
 
     # Check if query has been (dis)proven, returns None otherwise
     def check_query():
@@ -234,33 +259,50 @@ def min_query(forest: Forest, min_bound: Vector,
         return exit_query()
     
     # Run pso (to find counter examples, raise lower bound)
-    pso_min(forest, min_bound, max_bound, N=pso_N, forest_copy=False,
-            max_iters=pso_max_iters)
+    best_x, _ = pso_min(forest, min_bound, max_bound, N=pso_N,
+                        forest_copy=False, max_iters=pso_max_iters,
+                        stop=threshold)
 
     if check_query() is not None:
         return exit_query()
     
     # Merge trees (to decrease upper bound)
     while forest.n_trees > merge_limit:
-        forest.merge(forest.n_trees - 1)
+        if branch_and_bound:
+            forest.merge_min(forest.n_trees - 1, best_x, offset=offset)
+        else:
+            forest.merge(forest.n_trees - 1)
 
         if check_query() is not None:
             return exit_query()
+    
+    for tree in forest:
+        opt_min_bound, opt_max_bound = tree.find_min(min_bound.copy(),
+                                                     max_bound.copy())
+        opt_x = (opt_min_bound + opt_max_bound) / 2
+        forest.eval(opt_x)
 
     return exit_query()
 
 def query(forest: Forest, min_bound: Vector, max_bound: Vector,
           min_threshold: float, max_threshold: float,
-          **kwargs) -> Optional[bool]:
+          offset_factor: float = 0.15, **kwargs) -> Optional[bool]:
+    forest = forest.copy()
+    forest.prune_box(min_bound, max_bound)
+
+    offset = offset_factor * (max_threshold - min_threshold)
     min_result = min_query(forest, min_bound, max_bound, min_threshold,
-                           **kwargs)
+                           offset=offset, prune=False, **kwargs)
     
     if min_result == False:
+        forest.free()
         return False
     
+    offset *= -1
     max_result = max_query(forest, min_bound, max_bound, max_threshold,
-                           **kwargs)
+                           offset=offset, prune=False, **kwargs)
     
+    forest.free()
     if min_result and max_result:
         return True
     if max_result == False:
@@ -281,3 +323,20 @@ def robustness_query(forest: Forest, x: Vector, delta: Vector,
     y = forest.eval(x)
     return query(forest, x - delta, x + delta, y - epsilon, y + epsilon,
                  **kwargs)
+
+def robustness_query_many(forest: Forest, X: Iterable[Vector], delta: Vector,
+                          epsilon: float, **kwargs) -> Tuple[Iterable[Vector],
+                                                             Iterable[Vector],
+                                                             Iterable[Vector]]:
+    true_x = []
+    false_x = []
+    unproven = []
+    for x in X:
+        result = robustness_query(forest, x, delta, epsilon, **kwargs)
+        if result is None:
+            unproven.append(x.copy())
+        elif result:
+            true_x.append(x.copy())
+        else:
+            false_x.append(x.copy())
+    return true_x, false_x, unproven

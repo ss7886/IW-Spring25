@@ -188,7 +188,83 @@ class Forest:
             self.importances.append(new_tree.feature_importance())
             self.n_trees -= 1
         
-        self._update_stats(False)
+        self._update_stats(reset_importances=False)
+        return self
+    
+    def merge_min(self, n: int, x: Iterable[float],
+                  offset: float = 0.0) -> 'Forest':
+        self.eval(x)
+        if self.importances is None:
+            self.importances = self.feature_importance()
+        evals = [tree.eval(x) for tree in self.trees]
+        offsets = [offset for tree in self.trees]
+        
+        while self.n_trees > n:
+            champ_score = float("-inf")
+            champ_indices = -1, -1
+            for i in range(self.n_trees):
+                for j in range(i + 1, self.n_trees):
+                    corr = np.dot(self.importances[i], self.importances[j])
+                    score = corr / (self.trees[i].size * self.trees[j].size)
+                    if score > champ_score:
+                        champ_score = score
+                        champ_indices = i, j
+            
+            i, j = champ_indices
+            tree_sum = evals[i] + offsets[i] + evals[j] + offsets[j]
+            new_tree = dtree.merge_trees_min(self.trees[i], self.trees[j],
+                                             tree_sum)
+            self.trees.pop(j).free()
+            self.trees.pop(i).free()
+            self.trees.append(new_tree)
+            self.importances.pop(j)
+            self.importances.pop(i)
+            self.importances.append(new_tree.feature_importance())
+            evals.pop(j)
+            evals.pop(i)
+            evals.append(new_tree.eval(x))
+            offsets.append(offsets.pop(j) + offsets.pop(i))
+            self.n_trees -= 1
+        
+        self._update_stats(reset_importances=False)
+        return self
+    
+    def merge_max(self, n: int, x: Iterable[float],
+                  offset: float = 0.0) -> 'Forest':
+        self.eval(x)
+        if self.importances is None:
+            self.importances = self.feature_importance()
+        evals = [tree.eval(x) for tree in self.trees]
+        offsets = [offset for tree in self.trees]
+        
+        while self.n_trees > n:
+            champ_score = float("-inf")
+            champ_indices = -1, -1
+            for i in range(self.n_trees):
+                for j in range(i + 1, self.n_trees):
+                    corr = np.dot(self.importances[i], self.importances[j])
+                    score = corr / (self.trees[i].size * self.trees[j].size)
+                    if score > champ_score:
+                        champ_score = score
+                        champ_indices = i, j
+            
+            i, j = champ_indices
+            tree_sum = evals[i] + offsets[i] + evals[j] + offsets[j]
+            new_tree = dtree.merge_trees_max(self.trees[i], self.trees[j],
+                                             tree_sum)
+            self.trees.pop(j).free()
+            self.trees.pop(i).free()
+            self.trees.append(new_tree)
+            self.importances.pop(j)
+            self.importances.pop(i)
+            self.importances.append(new_tree.feature_importance())
+            evals.pop(j)
+            evals.pop(i)
+            evals.append(new_tree.eval(x))
+            offsets.append(offsets.pop(j) + offsets.pop(i))
+            self.n_trees -= 1
+        
+        self._update_stats(reset_importances=False)
         return self
 
 def make_forest_sklearn(forest: sklearn.ensemble, gb: bool = False,
