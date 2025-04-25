@@ -13,7 +13,7 @@ make
 make runtests
 ```
 
-## Example Evaluations
+## Run Evaluations on California Housing Dataset
 ```
-python -m examples.evaluations.california_rf
+python -m examples.evaluations.california --all
 ```
