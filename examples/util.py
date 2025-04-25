@@ -19,10 +19,11 @@ def mse_loss(model, X, y):
     return loss / N
 
 # Eval model
-def eval_model(model, train_X, train_y, test_X, test_y, name="model", output=True):
+def eval_model(model, train_X, train_y, test_X, test_y, name="model", output=None):
     train_loss = mse_loss(model, train_X, train_y)
     test_loss = mse_loss(model, test_X, test_y)
-    if output:
-        print(f"{name} - Train Loss: {train_loss}")
-        print(f"{name} - Test Loss: {test_loss}")
+    if output is not None:
+        with open(output, "a") as file:
+            file.write(f"{name} - Train Loss: {train_loss}\n")
+            file.write(f"{name} - Test Loss: {test_loss}\n\n")
     return train_loss, test_loss

@@ -13,7 +13,8 @@ else:
 
 def tree_constraint(reg: DecisionTreeRegressor, min_bound: Vector = None,
                     max_bound: Vector = None, factor: float = 1., 
-                    treeId: str = "Tree", X: Iterable[z3.Real] = None):
+                    offset: float = 0., treeId: str = "Tree",
+                    X: Iterable[z3.Real] = None):
     dim = reg.n_features_in_
     children_left = reg.tree_.children_left
     children_right = reg.tree_.children_right
@@ -40,7 +41,7 @@ def tree_constraint(reg: DecisionTreeRegressor, min_bound: Vector = None,
     def process_node(id: int) -> None:
         if children_left[id] == children_right[id]:
             val = values[id][0][0]
-            path_cons.append(o == (val * factor))
+            path_cons.append(o == (val * factor + offset))
             cons.append(z3.And(*path_cons))
             path_cons.pop()
             return
@@ -69,13 +70,15 @@ def forest_constraint(forest: ensemble, X: Iterable[z3.Real] = None, **kwargs):
         X = [z3.Real(f"x{i}") for i in range(dim)]
     
     for i, tree in enumerate(forest.estimators_):
+        if isinstance(tree, np.ndarray):
+            tree = tree[0]
         con, output = tree_constraint(tree, X=X, treeId=f"o{i}", **kwargs)
         cons.append(con)
         outputs.append(output)
     return z3.And(cons), outputs
 
-def max_query(forest: ensemble, min_bound: Vector,
-              max_bound: Vector, threshold: float) -> Optional[bool]:
+def max_query(forest: ensemble, min_bound: Vector, max_bound: Vector,
+              threshold: float, gb: bool = False) -> Optional[bool]:
     dim = forest.n_features_in_
     n_trees = forest.n_estimators
 
@@ -83,17 +86,24 @@ def max_query(forest: ensemble, min_bound: Vector,
 
     min_con = z3.And(*[X[i] >= min_bound[i] for i in range(dim)])
     max_con = z3.And(*[X[i] <= max_bound[i] for i in range(dim)])
+
+    if gb:
+        factor = forest.learning_rate
+        offset = forest.init_.constant_[0, 0]
+    else:
+        factor = 1 / n_trees
+        offset = 0
     forest_con, outputs = forest_constraint(forest, min_bound=min_bound,
-                                            max_bound=max_bound,
-                                            factor=(1 / n_trees), X=X)
+                                            max_bound=max_bound, factor=factor,
+                                            offset=offset, X=X)
     s = z3.Solver()
     s.add(forest_con, min_con, max_con)
     s.add(z3.Sum(*outputs) > threshold)
     res = s.check()
     return True if res == z3.unsat else False if res == z3.sat else None
 
-def min_query(forest: ensemble, min_bound: Vector,
-              max_bound: Vector, threshold: float) -> Optional[bool]:
+def min_query(forest: ensemble, min_bound: Vector, max_bound: Vector,
+              threshold: float, gb: bool = False) -> Optional[bool]:
     dim = forest.n_features_in_
     n_trees = forest.n_estimators
 
@@ -101,9 +111,16 @@ def min_query(forest: ensemble, min_bound: Vector,
 
     min_con = z3.And(*[X[i] >= min_bound[i] for i in range(dim)])
     max_con = z3.And(*[X[i] <= max_bound[i] for i in range(dim)])
+
+    if gb:
+        factor = forest.learning_rate
+        offset = forest.init_.constant_[0, 0]
+    else:
+        factor = 1 / n_trees
+        offset = 0
     forest_con, outputs = forest_constraint(forest, min_bound=min_bound,
-                                            max_bound=max_bound,
-                                            factor=(1 / n_trees), X=X)
+                                            max_bound=max_bound, factor=factor,
+                                            offset=offset, X=X)
     s = z3.Solver()
     s.add(forest_con, min_con, max_con)
     s.add(z3.Sum(*outputs) < threshold)
@@ -112,7 +129,7 @@ def min_query(forest: ensemble, min_bound: Vector,
 
 def query(forest: ensemble, min_bound: Vector, max_bound: Vector,
           min_threshold: float, max_threshold: float,
-          verbose: bool = False) -> Optional[bool]:
+          gb: bool = False) -> Optional[bool]:
     dim = forest.n_features_in_
     n_trees = forest.n_estimators
 
@@ -120,9 +137,17 @@ def query(forest: ensemble, min_bound: Vector, max_bound: Vector,
 
     min_con = z3.And(*[X[i] >= min_bound[i] for i in range(dim)])
     max_con = z3.And(*[X[i] <= max_bound[i] for i in range(dim)])
+
+    if gb:
+        factor = forest.learning_rate
+        offset = forest.init_.constant_[0, 0]
+    else:
+        factor = 1 / n_trees
+        offset = 0
     forest_con, outputs = forest_constraint(forest, min_bound=min_bound,
-                                            max_bound=max_bound,
-                                            factor=(1 / n_trees), X=X)
+                                            max_bound=max_bound, factor=factor,
+                                            offset=offset, X=X)
+    
     s = z3.Solver()
     s.add(forest_con, min_con, max_con)
     s.add(z3.Or(z3.Sum(*outputs) < min_threshold,
