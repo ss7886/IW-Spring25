@@ -201,7 +201,8 @@ def make_split(dim: int, axis: int, loc: float, left: Tree,
     ptr = _make_split_ptr(dim, axis, loc, left._tree, right._tree)
     return Tree(ptr)
 
-def make_tree_sklearn(reg: DecisionTreeRegressor) -> Tree:
+def make_tree_sklearn(reg: DecisionTreeRegressor, class_id: int = 0,
+                      factor: float = 1, offset: float = 0) -> Tree:
     dim = reg.n_features_in_
     children_left = reg.tree_.children_left
     children_right = reg.tree_.children_right
@@ -211,7 +212,7 @@ def make_tree_sklearn(reg: DecisionTreeRegressor) -> Tree:
 
     def make_node(id):
         if children_left[id] == children_right[id]:
-            val = values[id][0][0]
+            val = values[id][0][class_id] * factor + offset
             return _make_leaf_ptr(dim, val)
 
         left = make_node(children_left[id])
