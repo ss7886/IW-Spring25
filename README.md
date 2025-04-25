@@ -1,4 +1,4 @@
-# Robustness and Interpretability of Tree-based Ensemble Learning Methods
+# Robustness Verification for Tree-based Ensemble Learning Methods
 Author: **Samuel Sanft**
 
 ## Setting up the environment
