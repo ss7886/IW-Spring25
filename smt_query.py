@@ -41,7 +41,7 @@ def tree_constraint(reg: DecisionTreeRegressor, min_bound: Vector = None,
     def process_node(id: int) -> None:
         if children_left[id] == children_right[id]:
             val = values[id][0][0]
-            path_cons.append(o == (val * factor + offset))
+            path_cons.append(o == val * factor)
             cons.append(z3.And(*path_cons))
             path_cons.pop()
             return
@@ -95,10 +95,10 @@ def max_query(forest: ensemble, min_bound: Vector, max_bound: Vector,
         offset = 0
     forest_con, outputs = forest_constraint(forest, min_bound=min_bound,
                                             max_bound=max_bound, factor=factor,
-                                            offset=offset, X=X)
+                                            X=X)
     s = z3.Solver()
     s.add(forest_con, min_con, max_con)
-    s.add(z3.Sum(*outputs) > threshold)
+    s.add(z3.Sum(*outputs) + offset > threshold)
     res = s.check()
     return True if res == z3.unsat else False if res == z3.sat else None
 
@@ -120,16 +120,16 @@ def min_query(forest: ensemble, min_bound: Vector, max_bound: Vector,
         offset = 0
     forest_con, outputs = forest_constraint(forest, min_bound=min_bound,
                                             max_bound=max_bound, factor=factor,
-                                            offset=offset, X=X)
+                                            X=X)
     s = z3.Solver()
     s.add(forest_con, min_con, max_con)
-    s.add(z3.Sum(*outputs) < threshold)
+    s.add(z3.Sum(*outputs)  + offset < threshold)
     res = s.check()
     return True if res == z3.unsat else False if res == z3.sat else None
 
 def query(forest: ensemble, min_bound: Vector, max_bound: Vector,
           min_threshold: float, max_threshold: float,
-          gb: bool = False) -> Optional[bool]:
+          gb: bool = False, timeout: int = 600) -> Optional[bool]:
     dim = forest.n_features_in_
     n_trees = forest.n_estimators
 
@@ -146,14 +146,34 @@ def query(forest: ensemble, min_bound: Vector, max_bound: Vector,
         offset = 0
     forest_con, outputs = forest_constraint(forest, min_bound=min_bound,
                                             max_bound=max_bound, factor=factor,
-                                            offset=offset, X=X)
+                                            X=X)
     
     s = z3.Solver()
+    s.set(timeout=timeout * 1000)
     s.add(forest_con, min_con, max_con)
-    s.add(z3.Or(z3.Sum(*outputs) < min_threshold,
-                z3.Sum(*outputs) > max_threshold))
+    s.add(z3.Or(z3.Sum(*outputs) + offset < min_threshold,
+                z3.Sum(*outputs) + offset > max_threshold))
     res = s.check()
     return True if res == z3.unsat else False if res == z3.sat else None
+
+def query_many(forest, samples, delta, eps, gb: bool = False,
+               timeout: int = 600) -> Tuple[Iterable[bool],
+                                            Iterable[bool],
+                                            Iterable[bool]]:
+    y = forest.predict(samples)
+    true = []
+    false = []
+    none = []
+    for i, x in enumerate(samples):
+        res = query(forest, x - delta, x + delta, y[i] - eps, y[i] + eps,
+                    gb=gb, timeout=timeout)
+        if res is None:
+            none.append(x.copy())
+        elif res:
+            true.append(x.copy())
+        else:
+            false.append(x.copy())
+    return true, false, none
 
 if __name__ == "__main__":
     X = np.array([

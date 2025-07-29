@@ -2,8 +2,9 @@ channels:
   - defaults
 dependencies:
   - python=3.12
-  - numpy
   - matplotlib
+  - numpy
+  - pandas
   - scikit-learn
   - pip
   - pip:
@@ -11,3 +12,4 @@ dependencies:
     - notebook
     - pytest
     - snakeviz
+    - z3-solver

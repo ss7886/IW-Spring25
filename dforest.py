@@ -151,11 +151,24 @@ class Forest:
         assert len(min_bound) == self.dim
         assert len(max_bound) == self.dim
 
-        for i, x in enumerate(min_bound):
-            self.prune_right(i, x)
-        for i, x in enumerate(max_bound):
-            self.prune_left(i, x)
+        for tree in self.trees:
+            tree.prune_box(min_bound, max_bound)
+        self._update_stats()
+        self.champ_min = None
+        self.champ_min_x = None
+        self.champ_max = None
+        self.champ_max_x = None
         return self
+    
+    def prune_box_copy(self, min_bound: Iterable[float],
+                       max_bound: Iterable[float]):
+        assert len(min_bound) == self.dim
+        assert len(max_bound) == self.dim
+
+        trees = []
+        for tree in self.trees:
+            trees.append(tree.prune_box_copy(min_bound, max_bound))
+        return Forest(trees, self._factor, self._offset)
     
     def feature_importance(self) -> list[np.typing.NDArray]:
         importances = []

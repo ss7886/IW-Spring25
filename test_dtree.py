@@ -70,6 +70,45 @@ def test_prune_left():
     prune2.free()
     prune3.free()
 
+def test_prune_left_bounds():
+    splita = make_split(3, 2, -1, make_leaf(3, 0.1), make_leaf(3, 0.2))
+    splitb = make_split(3, 0, 0, make_leaf(3, 0.3), make_leaf(3, 0.4))
+    splitc = make_split(3, 2, 1, make_leaf(3, 0.5), make_leaf(3, 0.6))
+    splitbc = make_split(3, 0, 1, splitb, splitc)
+    tree = make_split(3, 1, 0, splita, splitbc)
+
+    tree.prune_left_bounds(np.array([0.5, np.nan, -1.5]))
+
+    assert tree.depth == 2
+    assert tree.size == 3
+    assert tree.min == 0.1
+    assert tree.max == 0.4
+
+    tree.free()
+
+def test_prune_left_bounds2():
+    splita = make_split(2, 0, -2, make_leaf(2, -3), make_leaf(2, -1))
+    splitb = make_split(2, 0, 2, make_leaf(2, 1), make_leaf(2, 3))
+    splitc = make_split(2, 0, 0, splita, splitb)
+    splitd = splitc.copy()
+    splite = make_split(2, 1, -2, make_leaf(2, -5), splitc)
+    splitf = make_split(2, 1, 2, splitd, make_leaf(2, 5))
+    tree = make_split(2, 1, 0, splite, splitf)
+
+    assert tree.depth == 4
+    assert tree.size == 10
+    assert tree.min == -5
+    assert tree.max == 5
+
+    tree.prune_left_bounds([1, 1])
+
+    assert tree.depth == 4
+    assert tree.size == 7
+    assert tree.min == -5
+    assert tree.max == 1
+
+    tree.free()
+
 def test_prune_right():
     splita = make_split(2, 1, 0.25, make_leaf(2, 1), make_leaf(2, 2))
     splitb = make_split(2, 1, 0.75, make_leaf(2, 3), make_leaf(2, 4))
@@ -105,6 +144,89 @@ def test_prune():
     assert tree.max == 3.0
 
     tree.free()
+
+def test_prune_right_bounds():
+    splita = make_split(3, 2, -1, make_leaf(3, 0.1), make_leaf(3, 0.2))
+    splitb = make_split(3, 0, 0, make_leaf(3, 0.3), make_leaf(3, 0.4))
+    splitc = make_split(3, 2, 1, make_leaf(3, 0.5), make_leaf(3, 0.6))
+    splitbc = make_split(3, 0, 1, splitb, splitc)
+    tree = make_split(3, 1, 0, splita, splitbc)
+
+    tree.prune_right_bounds(np.array([0.5, np.nan, 1.5]))
+
+    assert tree.depth == 2
+    assert tree.size == 3
+    assert tree.min == 0.2
+    assert tree.max == 0.6
+
+    tree.free()
+
+def test_prune_right_bounds2():
+    splita = make_split(2, 0, -2, make_leaf(2, -3), make_leaf(2, -1))
+    splitb = make_split(2, 0, 2, make_leaf(2, 1), make_leaf(2, 3))
+    splitc = make_split(2, 0, 0, splita, splitb)
+    splitd = splitc.copy()
+    splite = make_split(2, 1, -2, make_leaf(2, -5), splitc)
+    splitf = make_split(2, 1, 2, splitd, make_leaf(2, 5))
+    tree = make_split(2, 1, 0, splite, splitf)
+
+    assert tree.depth == 4
+    assert tree.size == 10
+    assert tree.min == -5
+    assert tree.max == 5
+
+    tree.prune_right_bounds([-1, -1])
+
+    assert tree.depth == 4
+    assert tree.size == 7
+    assert tree.min == -1
+    assert tree.max == 5
+
+    tree.free()
+
+def test_prune_box():
+    splita = make_split(2, 0, -2, make_leaf(2, -3), make_leaf(2, -1))
+    splitb = make_split(2, 0, 2, make_leaf(2, 1), make_leaf(2, 3))
+    splitc = make_split(2, 0, 0, splita, splitb)
+    splitd = splitc.copy()
+    splite = make_split(2, 1, -2, make_leaf(2, -5), splitc)
+    splitf = make_split(2, 1, 2, splitd, make_leaf(2, 5))
+    tree = make_split(2, 1, 0, splite, splitf)
+
+    assert tree.depth == 4
+    assert tree.size == 10
+    assert tree.min == -5
+    assert tree.max == 5
+
+    tree.prune_box([-1, -1], [1, 1])
+
+    assert tree.depth == 2
+    assert tree.size == 4
+    assert tree.min == -1
+    assert tree.max == 1
+
+    tree.free()
+
+def test_prune_box_copy():
+    splita = make_split(2, 0, -2, make_leaf(2, -3), make_leaf(2, -1))
+    splitb = make_split(2, 0, 2, make_leaf(2, 1), make_leaf(2, 3))
+    splitc = make_split(2, 0, 0, splita, splitb)
+    splitd = splitc.copy()
+    splite = make_split(2, 1, -2, make_leaf(2, -5), splitc)
+    splitf = make_split(2, 1, 2, splitd, make_leaf(2, 5))
+    tree = make_split(2, 1, 0, splite, splitf)
+
+    copy = tree.prune_box_copy([-1, -1], [1, 1])
+
+    assert tree.depth == 4
+    assert tree.size == 10
+    assert tree.min == -5
+    assert tree.max == 5
+
+    assert copy.depth == 2
+    assert copy.size == 4
+    assert copy.min == -1
+    assert copy.max == 1
 
 def test_merge():
     split_1a = make_split(2, 1, 0.25, make_leaf(2, 1), make_leaf(2, 2))

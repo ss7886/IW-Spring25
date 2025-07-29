@@ -479,6 +479,111 @@ Tree_T treePruneRightInPlace(Tree_T tree, uint32_t axis, double loc) {
     return treePruneRightInPlaceSafe(tree, axis, loc);
 }
 
+bool treePruneBoxSafe(Tree_T * result, const Tree_T tree,
+                      const double * minBounds, const double * maxBounds) {
+    *result = NULL;
+    if (tree->isLeaf) {
+        return copyTree(result, tree);
+    }
+
+    Split_T split = tree->split;
+    uint32_t axis = split->axis;
+    double loc = split->loc;
+    assert(minBounds[axis] <= maxBounds[axis]);
+    if (loc < minBounds[axis]) {
+        /* Drop left subtree. */
+        return treePruneBoxSafe(result, split->right, minBounds, maxBounds);
+    } else if (loc > maxBounds[axis]) {
+        /* Drop right subtree. */
+        return treePruneBoxSafe(result, split->left, minBounds, maxBounds);
+    } else {
+        /* Prune both trees. */
+        Tree_T left, right;
+        if (!treePruneBoxSafe(&left, split->left, minBounds, maxBounds)) {
+            return false;
+        }
+        if (!treePruneBoxSafe(&right, split->right, minBounds, maxBounds)) {
+            freeTree(left);
+            return false;
+        }
+        if (!makeSplit(result, treeDim(tree), axis, loc, left, right)) {
+            freeTrees(2, left, right);
+            return false;
+        }
+        return true;
+    }
+}
+
+bool treePruneBox(Tree_T * result, const Tree_T tree,
+                  const double * minBounds, const double * maxBounds) {
+    assert(validTree(tree));
+    assert(result != NULL);
+
+    return treePruneBoxSafe(result, tree, minBounds, maxBounds);
+}
+
+Tree_T treePruneLeftBoundsSafe(Tree_T tree, const double * bounds) {
+    if (tree->isLeaf) {
+        return tree;
+    }
+
+    Split_T split = tree->split;
+
+    if (bounds[split->axis] >= split->loc || isnan(bounds[split->axis])) {
+        /* Prune both subtrees. */
+        split->left = treePruneLeftBoundsSafe(split->left, bounds);
+        split->right = treePruneLeftBoundsSafe(split->right, bounds);
+        updateSplit(split);
+        return tree;
+    } else {
+        /* Prune left subtree, drop right subtree. */
+        Tree_T res = split->left;
+        res = treePruneLeftBoundsSafe(res, bounds);
+        free(split->right);
+        free(split);
+        free(tree);
+        return res;
+    }
+}
+
+Tree_T treePruneLeftBounds(Tree_T tree, const double * bounds) {
+    /* Only validate arguments once. */
+    assert(validTree(tree));
+
+    return treePruneLeftBoundsSafe(tree, bounds);
+}
+
+Tree_T treePruneRightBoundsSafe(Tree_T tree, const double * bounds) {
+    if (tree->isLeaf) {
+        return tree;
+    }
+
+    Split_T split = tree->split;
+
+    if (bounds[split->axis] <= split->loc || isnan(bounds[split->axis])) {
+        /* Prune both subtrees. */
+        split->left = treePruneRightBoundsSafe(split->left, bounds);
+        split->right = treePruneRightBoundsSafe(split->right, bounds);
+        updateSplit(split);
+        return tree;
+    } else {
+        /* Prune right subtree, drop left subtree. */
+        Tree_T res = split->right;
+        res = treePruneRightBoundsSafe(res, bounds);
+        free(split->left);
+        free(split);
+        free(tree);
+        return res;
+    }
+}
+
+Tree_T treePruneRightBounds(Tree_T tree, const double * bounds) {
+    /* Only validate arguments once. */
+    assert(validTree(tree));
+
+    return treePruneRightBoundsSafe(tree, bounds);
+}
+
 void treeAddConstAux(Tree_T tree, double c) {
     if (tree->isLeaf) {
         tree->val += c;

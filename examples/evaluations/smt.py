@@ -9,10 +9,10 @@ from sklearn.ensemble import RandomForestRegressor, GradientBoostingRegressor
 
 import examples.util as util
 import dforest
-from examples.evaluations.eval import run_robustness_evals
+from examples.evaluations.eval import run_smt_evals
 
-def california_eval(model, hyperparams, n_trials=200, stds=1/20, eps=0.8,
-                    output=None, np_seed=None, skl_seed=None, gb=False):
+def smt_eval(model, n_trials=10, stds=1/20, eps=0.8, gb=False,
+                    output=None, timeout=500, np_seed=None, skl_seed=None):
     if np_seed is None:
         np_seed = random.randint(0, 10_000)
     if skl_seed is None:
@@ -41,35 +41,14 @@ def california_eval(model, hyperparams, n_trials=200, stds=1/20, eps=0.8,
 
     util.eval_model(model, train_X, train_y, test_X, test_y, output=output)
 
-    # Create forest model
-    forest = dforest.make_forest_sklearn(model, gb=gb)
-
-    if output is not None:
-        with open(output, "a") as file:
-            file.write(f"# trees: {forest.n_trees}\n")
-            file.write(f"Avg size: {forest.avg_size()}\n\n")
-
     # Run queries
     samples = test_X[:n_trials]
     delta = stds * np.std(train_X, 0)
 
-    run_robustness_evals(forest, samples, delta, eps, hyperparams,
-                         output=output)
+    run_smt_evals(model, samples, delta, eps, gb=gb, timeout=timeout,
+                  output=output)
 
-    # Free forest
-    forest.free()
-
-default_params = [
-    {"pso_N": 10_000, "pso_max_iters": 5, "merge_limit": 5},
-    {"pso_N": 20_000, "pso_max_iters": 5, "merge_limit": 3}
-]
-
-strong_params = [
-    {"pso_N": 10_000, "pso_max_iters": 5, "merge_limit": 5},
-    {"pso_N": 40_000, "pso_max_iters": 5, "merge_limit": 2}
-]
-
-def rf_eval(output, hyperparams=None, n_trials=200, n_features=0.5,
+def rf_eval(output, timeout=300, n_trials=10, n_features=0.5,
             max_depth=None):
     if max_depth is None:
         model = RandomForestRegressor(max_features=n_features)
@@ -77,29 +56,20 @@ def rf_eval(output, hyperparams=None, n_trials=200, n_features=0.5,
         model = RandomForestRegressor(max_features=n_features,
                                       max_depth=max_depth)
 
-    if hyperparams is None:
-        hyperparams = default_params
+    smt_eval(model, timeout=timeout, n_trials=n_trials, output=output)
 
-    california_eval(model, hyperparams, n_trials=n_trials, output=output)
-
-def bagging_eval(output, hyperparams=None, n_trials=200, max_depth=None):
+def bagging_eval(output, timeout=300, n_trials=10, max_depth=None):
     if max_depth is None:
         model = RandomForestRegressor()
     else:
         model = RandomForestRegressor(max_depth=max_depth)
 
-    if hyperparams is None:
-        hyperparams = default_params
+    smt_eval(model, timeout=timeout, n_trials=n_trials, output=output)
 
-    california_eval(model, hyperparams, n_trials=n_trials, output=output)
-
-def gb_eval(output, hyperparams=None, n_trials=200, max_depth=3):
+def gb_eval(output, timeout=300, n_trials=10, max_depth=3):
     model = GradientBoostingRegressor(max_depth=max_depth)
 
-    if hyperparams is None:
-        hyperparams = default_params
-
-    california_eval(model, hyperparams, n_trials=n_trials, output=output, gb=True)
+    smt_eval(model, timeout=timeout, n_trials=n_trials, output=output, gb=True)
 
 def handle_args():
     """
@@ -122,14 +92,17 @@ def handle_args():
                         help="Gradient Boosting (Max Depth = 5)")
     parser.add_argument("--all", action="store_true",
                         help="Run all tests")
-    parser.add_argument("-n", "--n_trials", default=200, type=int,
+    parser.add_argument("-n", "--n_trials", default=10, type=int,
                         help="Number of trials to run")
+    parser.add_argument("-t", "--timeout", default=300, type=int,
+                        help="Z3 solver timeout (in seconds)")
     args = vars(parser.parse_args())
     return args
 
 def main():
     args = handle_args()
     n = args["n_trials"]
+    timeout = args["timeout"]
     if True not in args.values():
         print("No evals to run. Try running with flag --all or use flag "
               "--help to see full list of available evals.")
@@ -138,31 +111,33 @@ def main():
     if not os.path.exists("./out/"):
         os.mkdir("./out")
 
-    print("Running California Housing evals")
+    print("Running California Housing (SMT) evals")
 
     if args["rf"] or args["all"]:
-        rf_eval("out/_california_rf.out", n_trials=n)
+        rf_eval("out/_smt_rf.out", timeout=timeout, n_trials=n)
         print("Finished Random Forest")
     
     if args["rf_15"] or args["all"]:
-        rf_eval("out/_california_rf_d15.out", max_depth=15, n_trials=n)
+        rf_eval("out/_smt_rf_d15.out", max_depth=15, timeout=timeout,
+                n_trials=n)
         print("Finished Random Forest (Max Depth = 15)")
 
     if args["bag"] or args["all"]:
-        bagging_eval("out/_california_bag.out", n_trials=n)
+        bagging_eval("out/_smt_bag.out", n_trials=n)
         print("Finished Bagging")
     
     if args["bag_15"] or args["all"]:
-        rf_eval("out/_california_bag_d15.out", max_depth=15, n_trials=n)
+        rf_eval("out/_smt_bag_d15.out", max_depth=15, timeout=timeout,
+                n_trials=n)
         print("Finished Bagging (Max Depth = 15)")
 
     if args["gb_8"] or args["all"]:
-        gb_eval("out/_california_gb_d8.out", hyperparams=strong_params,
+        gb_eval("out/_smt_gb_d8.out", timeout=timeout,
                 max_depth=8, n_trials=n)
         print("Finished Gradient Boosting (Max Depth = 8)")
 
     if args["gb_5"] or args["all"]:
-        gb_eval("out/_california_gb_d5.out", hyperparams=strong_params,
+        gb_eval("out/_smt_gb_d5.out", timeout=timeout,
                 max_depth=5, n_trials=n)
         print("Finished Gradient Boosting (Max Depth = 5)")
 

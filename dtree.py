@@ -53,10 +53,6 @@ class Tree:
         self._tree = ffi.NULL
     
     def copy(self) -> 'Tree':
-        """
-        Does not create python objects for tree.left and tree.right, even if they
-        are defined in the original.
-        """
         assert self._check_tree()
 
         pointer = ffi.new("Tree_T *")
@@ -102,11 +98,6 @@ class Tree:
         self._tree = lib.treePruneLeftInPlace(self._tree, axis, threshold)
         self._update_stats()
         return self
-    
-    def prune_left_copy(self, axis: int, threshold: float) -> 'Tree':
-        assert self._check_tree()
-        treePtr = lib.treePruneLeft(self._tree, axis, threshold)
-        return Tree(treePtr)
 
     def prune_right(self, axis: int, threshold: float) -> 'Tree':
         assert self._check_tree()
@@ -114,10 +105,25 @@ class Tree:
         self._update_stats()
         return self
     
-    def prune_right_copy(self, axis: int, threshold: float) -> 'Tree':
+    def prune_left_bounds(self, bounds: NDArray):
         assert self._check_tree()
-        treePtr = lib.treePruneRight(self._tree, axis, threshold)
-        return Tree(treePtr)
+        assert len(bounds) == self.dim
+
+        bounds = np.array(bounds, dtype=np.float64)
+        max_bounds = ffi.from_buffer("double[]", bounds)
+        self._tree = lib.treePruneLeftBounds(self._tree, max_bounds)
+        self._update_stats()
+        return self
+    
+    def prune_right_bounds(self, bounds: NDArray):
+        assert self._check_tree()
+        assert len(bounds) == self.dim
+
+        bounds = np.array(bounds, dtype=np.float64)
+        min_bounds = ffi.from_buffer("double[]", bounds)
+        self._tree = lib.treePruneRightBounds(self._tree, min_bounds)
+        self._update_stats()
+        return self
     
     def prune_box(self, min_bound: Iterable[float],
                   max_bound: Iterable[float]):
@@ -125,11 +131,24 @@ class Tree:
         assert len(min_bound) == self.dim
         assert len(max_bound) == self.dim
 
-        for i, x in enumerate(min_bound):
-            self.prune_right(i, x)
-        for i, x in enumerate(max_bound):
-            self.prune_left(i, x)
+        self.prune_right_bounds(min_bound)
+        self.prune_left_bounds(max_bound)
         return self
+    
+    def prune_box_copy(self, min_bound: Iterable[float],
+                       max_bound: Iterable[float]):
+        assert self._check_tree()
+        assert len(min_bound) == self.dim
+        assert len(max_bound) == self.dim
+
+        min_bound = np.array(min_bound, dtype=np.float64)
+        max_bound = np.array(max_bound, dtype=np.float64)
+        min_buffer = ffi.from_buffer("double[]", min_bound)
+        max_buffer = ffi.from_buffer("double[]", max_bound)
+        pointer = ffi.new("Tree_T *")
+        if not lib.treePruneBox(pointer, self._tree, min_buffer, max_buffer):
+            raise treeCFFIError("copyTree failed.")
+        return Tree(pointer[0])
 
     def feature_importance(self) -> NDArray:
         assert self._check_tree()

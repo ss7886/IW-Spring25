@@ -1,3 +1,4 @@
+import gc
 from typing import Iterable, Optional, Tuple, Union, TYPE_CHECKING
 
 from dforest import Forest
@@ -251,8 +252,7 @@ def min_query(forest: Forest, min_bound: Vector,
 def query(forest: Forest, min_bound: Vector, max_bound: Vector,
           min_threshold: float, max_threshold: float,
           offset_factor: float = 0.15, **kwargs) -> Optional[bool]:
-    forest = forest.copy()
-    forest.prune_box(min_bound, max_bound)
+    forest = forest.prune_box_copy(min_bound, max_bound)
 
     offset = offset_factor * (max_threshold - min_threshold)
     min_result = min_query(forest, min_bound, max_bound, min_threshold,
@@ -452,6 +452,9 @@ def two_class_query(forest: ForestClassifier, class_a: int, class_b: int,
                 print(f"x = {best_x}, y = {forest.eval(best_x)}")
             forest.free()
             return False, best_x
+        if verbose:
+            print(f"Cannot prove two class query for classes: {label_a}, {label_b}")
+        forest.free()
         return None, None
     
     if check_query() is not None:
@@ -459,7 +462,7 @@ def two_class_query(forest: ForestClassifier, class_a: int, class_b: int,
     
     best_x, best_diff = pso_two_class(forest, class_a, class_b, min_bound,
                                       max_bound, N=pso_N,
-                                      max_iters=pso_max_iters)
+                                      max_iters=pso_max_iters, forest_copy=False)
     
     if check_query() is not None:
         return exit_query()
@@ -475,16 +478,13 @@ def two_class_query(forest: ForestClassifier, class_a: int, class_b: int,
 
         if check_query() is not None:
             return exit_query()
-    
-    forest.free()
 
     return exit_query()
 
 def multiclass_query(forest: ForestClassifier, x: Vector,
                      min_bound: Vector, max_bound: Vector,
                      **kwargs) -> Tuple[Optional[bool], Optional[Vector]]:
-    forest = forest.copy()
-    forest.prune_box(min_bound, max_bound)
+    forest = forest.prune_box_copy(min_bound, max_bound)
 
     y = np.argmax(forest.eval(x, True)[0])
 
@@ -495,34 +495,35 @@ def multiclass_query(forest: ForestClassifier, x: Vector,
         query_res, cex = two_class_query(forest, y, i, min_bound, max_bound,
                                          prune=False, **kwargs)
         if query_res == False:
+            forest.free()
             return False, cex
         elif query_res is None:
             res = None
+    
+    forest.free()
     return res, None
 
-def multiclass_robustness_query(forest: ForestClassifier, x: Vector,
-                                delta: Vector, clip_min: Vector = None,
-                                clip_max: Vector = None,
-                                **kwargs) -> Tuple[Optional[bool],
-                                                   Optional[Vector]]:
+def multiclass_rob_query(forest: ForestClassifier, x: Vector, delta: Vector,
+                         clip_min: Vector = None, clip_max: Vector = None,
+                         **kwargs) -> Tuple[Optional[bool], Optional[Vector]]:
     min_bound = np.clip(x - delta, clip_min, clip_max)
     max_bound = np.clip(x + delta, clip_min, clip_max)
     return multiclass_query(forest, x, min_bound, max_bound, **kwargs)
 
-def multiclass_robustness_query_many(forest: Forest, X: Iterable[Vector],
-                                     delta: Vector, clip_min: Vector = None,
-                                     clip_max: Vector = None,
-                                     **kwargs) -> Tuple[Tuple[Iterable[Vector],
-                                                              Iterable[Vector],
-                                                              Iterable[Vector]],
-                                                        Iterable[Vector]]:
+def multiclass_rob_query_many(forest: Forest, X: Iterable[Vector],
+                              delta: Vector, clip_min: Vector = None,
+                              clip_max: Vector = None, gc_clear: bool = True,
+                              **kwargs) -> Tuple[Tuple[Iterable[Vector],
+                                                       Iterable[Vector],
+                                                       Iterable[Vector]],
+                                                 Iterable[Vector]]:
     true_x = []
     false_x = []
     unproven = []
     cexs = []
     for x in X:
-        result, cex = multiclass_robustness_query(forest, x, delta, clip_min,
-                                                  clip_max, **kwargs)
+        result, cex = multiclass_rob_query(forest, x, delta, clip_min,
+                                           clip_max, **kwargs)
         if result is None:
             unproven.append(x.copy())
         elif result:
@@ -530,5 +531,9 @@ def multiclass_robustness_query_many(forest: Forest, X: Iterable[Vector],
         else:
             false_x.append(x.copy())
             cexs.append(cex)
+
+        if gc_clear:
+            gc.collect()
+
 
     return (true_x, false_x, unproven), cexs

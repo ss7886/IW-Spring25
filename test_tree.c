@@ -1,4 +1,5 @@
 #include <assert.h>
+#include <math.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include "tree.h"
@@ -125,7 +126,22 @@ int main(void) {
     assert(treeEval(pruneLeft, x4) == 0.4);
     assert(treeEval(pruneLeft, x5) == 0.4);
     assert(treeEval(pruneLeft, x6) == 0.4);
-    freeTree(pruneLeft);  
+    freeTree(pruneLeft);
+    
+    /* Test prune left bounds. */
+    assert (copyTree(&pruneLeft, tree));
+    double pruneLeftBounds[] = {0.5, NAN, -1.5};
+    pruneLeft = treePruneLeftBounds(pruneLeft, pruneLeftBounds);
+    assert(treeDepth(pruneLeft) == 2);
+    assert(treeSize(pruneLeft) == 3);
+
+    assert(treeEval(pruneLeft, x1) == 0.1);
+    assert(treeEval(pruneLeft, x2) == 0.1);
+    assert(treeEval(pruneLeft, x3) == 0.3);
+    assert(treeEval(pruneLeft, x4) == 0.4);
+    assert(treeEval(pruneLeft, x5) == 0.4);
+    assert(treeEval(pruneLeft, x6) == 0.4);
+    freeTree(pruneLeft); 
 
     /* Test prune right. */
     Tree_T pruneRight;
@@ -153,6 +169,21 @@ int main(void) {
     assert(treeEval(pruneRight, x4) == 0.4);
     assert(treeEval(pruneRight, x5) == 0.5);
     assert(treeEval(pruneRight, x6) == 0.6);
+    freeTree(pruneRight);
+
+    /* Test prune right bounds. */
+    assert (copyTree(&pruneRight, tree));
+    double pruneRightBounds[] = {0.5, NAN, -1.5};
+    pruneRight = treePruneLeftBounds(pruneRight, pruneRightBounds);
+    assert(treeDepth(pruneRight) == 2);
+    assert(treeSize(pruneRight) == 3);
+
+    assert(treeEval(pruneRight, x1) == 0.1);
+    assert(treeEval(pruneRight, x2) == 0.1);
+    assert(treeEval(pruneRight, x3) == 0.3);
+    assert(treeEval(pruneRight, x4) == 0.4);
+    assert(treeEval(pruneRight, x5) == 0.4);
+    assert(treeEval(pruneRight, x6) == 0.4);
     freeTree(pruneRight);
 
     /* Test that copies are still ok after freeing tree. */

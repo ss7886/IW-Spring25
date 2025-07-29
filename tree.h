@@ -32,6 +32,12 @@ Tree_T treePruneLeftInPlace(Tree_T tree, uint32_t axis, double loc);
 bool treePruneRight(Tree_T * result, const Tree_T tree, uint32_t axis,
                     double loc);
 Tree_T treePruneRightInPlace(Tree_T tree, uint32_t axis, double loc);
+
+bool treePruneBox(Tree_T * result, const Tree_T tree,
+                  const double * minBounds, const double * maxBounds);
+Tree_T treePruneLeftBounds(Tree_T tree, const double * bounds);
+Tree_T treePruneRightBounds(Tree_T tree, const double * bounds);
+
 bool treeMerge(Tree_T * result, const Tree_T tree1, const Tree_T tree2);
 bool treeMergeMax(Tree_T * result, const Tree_T tree1, const Tree_T tree2, 
                   double max);

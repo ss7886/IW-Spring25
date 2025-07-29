@@ -88,12 +88,7 @@ class ForestClassifier:
                 new_class_trees.append(tree.copy())
             trees.append(new_class_trees)
         
-        assert len(trees) == len(self.trees)
-        assert len(trees[0]) == len(self.trees[0])
-        
-        classes = self.classes.copy()
-
-        forest = ForestClassifier(trees, classes, self._factor,
+        forest = ForestClassifier(trees, self.classes.copy(), self._factor,
                                   self._offset.copy(), self._gb)
         forest.champ_min = self.champ_min
         forest.champ_min_x = self.champ_min_x
@@ -173,24 +168,36 @@ class ForestClassifier:
         X = np.random.uniform(low, high, (n, self.dim))
         self.eval(X)
     
-    def prune_left(self, class_id: int, axis: int, threshold: float) -> 'ForestClassifier':
-        for tree in self.trees[class_id]:
-            tree.prune_left(axis, threshold)
-        self._update_stats(class_id=class_id)
-        self.champ_min_x[class_id] = None
-        self.champ_min[class_id] = None
-        self.champ_max_x[class_id] = None
-        self.champ_max[class_id] = None
+    def prune_left(self, class_id: int, axis: int, threshold: float,
+                   update_stats: bool = True) -> 'ForestClassifier':
+        if self.importances[class_id] is None:
+            self.importances[class_id] = self.feature_importance(class_id)
+        for i, tree in enumerate(self.trees[class_id]):
+            if self.importances[class_id][i][axis] > 0:
+                tree.prune_left(axis, threshold)
+                self.importances[class_id][i] = tree.feature_importance()
+        if update_stats:
+            self._update_stats(class_id=class_id)
+            self.champ_min_x[class_id] = None
+            self.champ_min[class_id] = None
+            self.champ_max_x[class_id] = None
+            self.champ_max[class_id] = None
         return self
     
-    def prune_right(self, class_id: int, axis: int, threshold: float) -> 'ForestClassifier':
-        for tree in self.trees[class_id]:
-            tree.prune_right(axis, threshold)
-        self._update_stats(class_id=class_id)
-        self.champ_min_x[class_id] = None
-        self.champ_min[class_id] = None
-        self.champ_max_x[class_id] = None
-        self.champ_max[class_id] = None
+    def prune_right(self, class_id: int, axis: int, threshold: float,
+                    update_stats: bool = True) -> 'ForestClassifier':
+        if self.importances[class_id] is None:
+            self.importances[class_id] = self.feature_importance(class_id)
+        for i, tree in enumerate(self.trees[class_id]):
+            if self.importances[class_id][i][axis] > 0:
+                tree.prune_right(axis, threshold)
+                self.importances[class_id][i] = tree.feature_importance()
+        if update_stats:
+            self._update_stats(class_id=class_id)
+            self.champ_min_x[class_id] = None
+            self.champ_min[class_id] = None
+            self.champ_max_x[class_id] = None
+            self.champ_max[class_id] = None
         return self
     
     def prune_box(self, min_bound: Iterable[float], max_bound: Iterable[float],
@@ -202,28 +209,48 @@ class ForestClassifier:
             class_ids = range(self.n_class)
 
         for class_id in class_ids:
-            for i, x in enumerate(min_bound):
-                self.prune_right(class_id, i, x)
-            for i, x in enumerate(max_bound):
-                self.prune_left(class_id, i, x)
+            for tree in self.trees[class_id]:
+                tree.prune_box(min_bound, max_bound)
+            self._update_stats(class_id=class_id)
+            self.champ_min_x[class_id] = None
+            self.champ_min[class_id] = None
+            self.champ_max_x[class_id] = None
+            self.champ_max[class_id] = None
         return self
+    
+    def prune_box_copy(self, min_bound: Iterable[float],
+                       max_bound: Iterable[float]):
+        assert len(min_bound) == self.dim
+        assert len(max_bound) == self.dim
+
+        trees = []
+        for class_id in range(self.n_class):
+            class_trees = []
+            for tree in self.trees[class_id]:
+                class_trees.append(tree.prune_box_copy(min_bound, max_bound))
+            trees.append(class_trees)
+
+
+        return ForestClassifier(trees, self.classes.copy(), self._factor,
+                                self._offset.copy(), self._gb)
     
     def feature_importance(self, class_id: int) -> list[np.typing.NDArray]:
         importances = []
         for tree in self.trees[class_id]:
             importances.append(tree.feature_importance())
-        return importances
+        return np.array(importances)
     
     def merge(self, class_id: int, n: int) -> 'ForestClassifier':
-        if self.importances[class_id] is None:
-            self.importances[class_id] = self.feature_importance(class_id)
+        importances = self.importances[class_id]
+        if importances is None:
+            importances = self.feature_importance(class_id)
         
         while self.n_trees[class_id] > n:
             champ_score = float("-inf")
             champ_indices = -1, -1
             for i in range(self.n_trees[class_id]):
                 for j in range(i + 1, self.n_trees[class_id]):
-                    corr = np.dot(self.importances[class_id][i], self.importances[class_id][j])
+                    corr = np.dot(importances[i], importances[j])
                     score = corr / (self.trees[class_id][i].size * self.trees[class_id][j].size)
                     if score > champ_score:
                         champ_score = score
@@ -234,19 +261,20 @@ class ForestClassifier:
             self.trees[class_id].pop(j).free()
             self.trees[class_id].pop(i).free()
             self.trees[class_id].append(new_tree)
-            self.importances[class_id].pop(j)
-            self.importances[class_id].pop(i)
-            self.importances[class_id].append(new_tree.feature_importance())
+            np.delete(importances, [i, j], axis=0)
+            importances = np.vstack((importances,
+                                    new_tree.feature_importance()))
             self.n_trees[class_id] -= 1
         
+        self.importances[class_id] = importances
         self._update_stats(class_id=class_id, reset_importances=False)
         return self
     
     def merge_min(self, class_id: int, n: int, x: Iterable[float],
                   offset: float = 0.0) -> 'ForestClassifier':
-        self.eval(x)
-        if self.importances[class_id] is None:
-            self.importances[class_id] = self.feature_importance(class_id)
+        importances = self.importances[class_id]
+        if importances is None:
+            importances = self.feature_importance(class_id)
         evals = [tree.eval(x) for tree in self.trees[class_id]]
         offsets = [offset for tree in self.trees[class_id]]
         
@@ -255,7 +283,7 @@ class ForestClassifier:
             champ_indices = -1, -1
             for i in range(self.n_trees[class_id]):
                 for j in range(i + 1, self.n_trees[class_id]):
-                    corr = np.dot(self.importances[class_id][i], self.importances[class_id][j])
+                    corr = np.dot(importances[i], importances[j])
                     score = corr / (self.trees[class_id][i].size * self.trees[class_id][j].size)
                     if score > champ_score:
                         champ_score = score
@@ -268,23 +296,24 @@ class ForestClassifier:
             self.trees[class_id].pop(j).free()
             self.trees[class_id].pop(i).free()
             self.trees[class_id].append(new_tree)
-            self.importances[class_id].pop(j)
-            self.importances[class_id].pop(i)
-            self.importances[class_id].append(new_tree.feature_importance())
+            np.delete(importances, [i, j], axis=0)
+            importances = np.vstack((importances,
+                                    new_tree.feature_importance()))
             evals.pop(j)
             evals.pop(i)
             evals.append(new_tree.eval(x))
             offsets.append(offsets.pop(j) + offsets.pop(i))
             self.n_trees[class_id] -= 1
         
+        self.importances[class_id] = importances
         self._update_stats(class_id=class_id, reset_importances=False)
         return self
     
     def merge_max(self, class_id: int, n: int, x: Iterable[float],
                   offset: float = 0.0) -> 'ForestClassifier':
-        self.eval(x)
-        if self.importances[class_id] is None:
-            self.importances[class_id] = self.feature_importance(class_id)
+        importances = self.importances[class_id]
+        if importances is None:
+            importances = self.feature_importance(class_id)
         evals = [tree.eval(x) for tree in self.trees[class_id]]
         offsets = [offset for tree in self.trees[class_id]]
         
@@ -293,7 +322,7 @@ class ForestClassifier:
             champ_indices = -1, -1
             for i in range(self.n_trees[class_id]):
                 for j in range(i + 1, self.n_trees[class_id]):
-                    corr = np.dot(self.importances[class_id][i], self.importances[class_id][j])
+                    corr = np.dot(importances[i], importances[j])
                     score = corr / (self.trees[class_id][i].size * self.trees[class_id][j].size)
                     if score > champ_score:
                         champ_score = score
@@ -306,15 +335,16 @@ class ForestClassifier:
             self.trees[class_id].pop(j).free()
             self.trees[class_id].pop(i).free()
             self.trees[class_id].append(new_tree)
-            self.importances[class_id].pop(j)
-            self.importances[class_id].pop(i)
-            self.importances[class_id].append(new_tree.feature_importance())
+            np.delete(importances, [i, j], axis=0)
+            importances = np.vstack((importances,
+                                    new_tree.feature_importance()))
             evals.pop(j)
             evals.pop(i)
             evals.append(new_tree.eval(x))
             offsets.append(offsets.pop(j) + offsets.pop(i))
             self.n_trees[class_id] -= 1
         
+        self.importances[class_id] = importances
         self._update_stats(class_id=class_id, reset_importances=False)
         return self
 

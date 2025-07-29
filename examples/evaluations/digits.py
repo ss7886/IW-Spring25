@@ -4,15 +4,15 @@ import random
 import sys
 
 import numpy as np
-from sklearn.datasets import fetch_california_housing
-from sklearn.ensemble import RandomForestRegressor, GradientBoostingRegressor
+from sklearn.datasets import load_digits
+from sklearn.ensemble import RandomForestClassifier, GradientBoostingClassifier
 
 import examples.util as util
-import dforest
-from examples.evaluations.eval import run_robustness_evals
+import dforest_class
+from examples.evaluations.eval import run_multiclass_evals
 
-def california_eval(model, hyperparams, n_trials=200, stds=1/20, eps=0.8,
-                    output=None, np_seed=None, skl_seed=None, gb=False):
+def digits_eval(model, hyperparams, n_trials=200, output=None, np_seed=None,
+                skl_seed=None, gb=False):
     if np_seed is None:
         np_seed = random.randint(0, 10_000)
     if skl_seed is None:
@@ -25,8 +25,8 @@ def california_eval(model, hyperparams, n_trials=200, stds=1/20, eps=0.8,
 
     np.random.seed(np_seed)
 
-    # Fetch Dataset
-    data_X, data_y = fetch_california_housing(return_X_y=True)
+    # Load dataset
+    data_X, data_y = load_digits(return_X_y=True)
 
     # Shuffle and split data
     train_X, train_y, test_X, test_y = util.split(data_X, data_y, seed=skl_seed)
@@ -39,67 +39,73 @@ def california_eval(model, hyperparams, n_trials=200, stds=1/20, eps=0.8,
     # Train scikit-learn model
     model.fit(train_X, train_y)
 
-    util.eval_model(model, train_X, train_y, test_X, test_y, output=output)
+    util.eval_multiclass_model(model, train_X, train_y, test_X, test_y,
+                               output=output)
 
     # Create forest model
-    forest = dforest.make_forest_sklearn(model, gb=gb)
+    forest = dforest_class.make_forest_classifier_sklearn(model, gb=gb)
 
     if output is not None:
         with open(output, "a") as file:
+            file.write(f"# classes: {forest.n_class}\n")
             file.write(f"# trees: {forest.n_trees}\n")
-            file.write(f"Avg size: {forest.avg_size()}\n\n")
+            file.write("Avg size:\n")
+            for class_id in range(forest.n_class):
+                file.write(f"\tClass {forest.classes[class_id]}: {forest.avg_size(class_id)}\n")
+            file.write("\n")
 
     # Run queries
     samples = test_X[:n_trials]
-    delta = stds * np.std(train_X, 0)
+    delta = np.ones(64)
+    clip_min = 0
+    clip_max = 16
 
-    run_robustness_evals(forest, samples, delta, eps, hyperparams,
+    run_multiclass_evals(forest, samples, delta, hyperparams, clip_min, clip_max,
                          output=output)
 
     # Free forest
     forest.free()
 
 default_params = [
-    {"pso_N": 10_000, "pso_max_iters": 5, "merge_limit": 5},
-    {"pso_N": 20_000, "pso_max_iters": 5, "merge_limit": 3}
+    {"pso_N": 10_000, "pso_max_iters": 5, "merge_limit": 5}
 ]
 
 strong_params = [
-    {"pso_N": 10_000, "pso_max_iters": 5, "merge_limit": 5},
-    {"pso_N": 40_000, "pso_max_iters": 5, "merge_limit": 2}
+    {"pso_N": 20_000, "pso_max_iters": 5, "merge_limit": 3}
 ]
 
-def rf_eval(output, hyperparams=None, n_trials=200, n_features=0.5,
+def rf_eval(output, hyperparams=None, n_trials=200, n_features="sqrt",
             max_depth=None):
     if max_depth is None:
-        model = RandomForestRegressor(max_features=n_features)
+        model = RandomForestClassifier(max_features=n_features)
     else:
-        model = RandomForestRegressor(max_features=n_features,
-                                      max_depth=max_depth)
+        model = RandomForestClassifier(max_features=n_features,
+                                       max_depth=max_depth)
 
     if hyperparams is None:
         hyperparams = default_params
 
-    california_eval(model, hyperparams, n_trials=n_trials, output=output)
+    digits_eval(model, hyperparams, n_trials=n_trials, output=output)
 
 def bagging_eval(output, hyperparams=None, n_trials=200, max_depth=None):
     if max_depth is None:
-        model = RandomForestRegressor()
+        model = RandomForestClassifier(max_features=None)
     else:
-        model = RandomForestRegressor(max_depth=max_depth)
+        model = RandomForestClassifier(max_features=None,
+                                       max_depth=max_depth)
 
     if hyperparams is None:
         hyperparams = default_params
 
-    california_eval(model, hyperparams, n_trials=n_trials, output=output)
+    digits_eval(model, hyperparams, n_trials=n_trials, output=output)
 
 def gb_eval(output, hyperparams=None, n_trials=200, max_depth=3):
-    model = GradientBoostingRegressor(max_depth=max_depth)
+    model = GradientBoostingClassifier(max_depth=max_depth)
 
     if hyperparams is None:
         hyperparams = default_params
 
-    california_eval(model, hyperparams, n_trials=n_trials, output=output, gb=True)
+    digits_eval(model, hyperparams, n_trials=n_trials, output=output, gb=True)
 
 def handle_args():
     """
@@ -138,31 +144,31 @@ def main():
     if not os.path.exists("./out/"):
         os.mkdir("./out")
 
-    print("Running California Housing evals")
+    print("Running Handwritten Digits evals")
 
     if args["rf"] or args["all"]:
-        rf_eval("out/_california_rf.out", n_trials=n)
+        rf_eval("out/_digits_rf.out", n_trials=n)
         print("Finished Random Forest")
     
     if args["rf_15"] or args["all"]:
-        rf_eval("out/_california_rf_d15.out", max_depth=15, n_trials=n)
+        rf_eval("out/_digits_rf_d15.out", max_depth=15, n_trials=n)
         print("Finished Random Forest (Max Depth = 15)")
 
     if args["bag"] or args["all"]:
-        bagging_eval("out/_california_bag.out", n_trials=n)
+        bagging_eval("out/_digits_bag.out", n_trials=n)
         print("Finished Bagging")
     
     if args["bag_15"] or args["all"]:
-        rf_eval("out/_california_bag_d15.out", max_depth=15, n_trials=n)
+        rf_eval("out/_digits_bag_d15.out", max_depth=15, n_trials=n)
         print("Finished Bagging (Max Depth = 15)")
 
     if args["gb_8"] or args["all"]:
-        gb_eval("out/_california_gb_d8.out", hyperparams=strong_params,
+        gb_eval("out/_digits_gb_d8.out", hyperparams=strong_params,
                 max_depth=8, n_trials=n)
         print("Finished Gradient Boosting (Max Depth = 8)")
 
     if args["gb_5"] or args["all"]:
-        gb_eval("out/_california_gb_d5.out", hyperparams=strong_params,
+        gb_eval("out/_digits_gb_d5.out", hyperparams=strong_params,
                 max_depth=5, n_trials=n)
         print("Finished Gradient Boosting (Max Depth = 5)")
 

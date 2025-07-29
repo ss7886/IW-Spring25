@@ -26,4 +26,30 @@ def eval_model(model, train_X, train_y, test_X, test_y, name="model", output=Non
         with open(output, "a") as file:
             file.write(f"{name} - Train Loss: {train_loss}\n")
             file.write(f"{name} - Test Loss: {test_loss}\n\n")
+    else:
+        print(f"{name} - Train Loss: {train_loss}")
+        print(f"{name} - Test Loss: {test_loss}\n")
     return train_loss, test_loss
+
+def eval_multiclass_model(model, train_X, train_y, test_X, test_y,
+                          name="model", output=None):
+    train_acc = model.score(train_X, train_y)
+    test_acc = model.score(test_X, test_y)
+    if output is not None:
+        with open(output, "a") as file:
+            file.write(f"{name} - Train Accuracy: {train_acc}\n")
+            file.write(f"{name} - Test Accuracy: {test_acc}\n\n")
+    else:
+        print(f"{name} - Train Accuracy: {train_acc}")
+        print(f"{name} - Test Accuracy: {test_acc}\n")
+    return train_acc, test_acc
+
+def image_resize(im, pool_size=2):
+    """
+    Resize image using max-pooling (e.g. 28x28 image -> 14x14 image)
+    """
+    rows, cols = im.shape
+    new_shape = (rows // 2, pool_size, cols // 2, pool_size)
+    new_im = im.reshape(new_shape)
+    new_im = new_im.transpose(0, 2, 1, 3)
+    return new_im.max(axis=(2, 3))
